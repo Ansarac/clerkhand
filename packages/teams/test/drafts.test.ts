@@ -28,7 +28,7 @@ function box(text: string): ComposeResult {
 }
 
 function message(id: string, text: string): Message {
-  return { id, author: "Me", time: null, text, edited: false };
+  return { id, author: "Me", time: null, text, edited: false, deleted: false };
 }
 
 /** A compose box that holds `initial` until a fill replaces it with `onFill(text)`. */

@@ -172,6 +172,35 @@ describe("send", () => {
   });
 });
 
+describe("edit, delete and undo-delete", () => {
+  it("require a chat and a message before starting a browser", async () => {
+    const calls = [
+      ["edit", "Alpha", "1"],
+      ["edit", "Alpha", "--text", "x"],
+      ["edit", "Alpha", "1", "--text", " "],
+      ["delete", "Alpha"],
+      ["delete", "Alpha", "1", "2"],
+      ["undo-delete", "Alpha"],
+      ["delete", "Alpha", "1", "--text", "x"],
+    ];
+    for (const argv of calls) {
+      expect((await run(argv, context(noBrowser))).code, argv.join(" ")).toBe(2);
+    }
+  });
+
+  it("allow fill only for edit", async () => {
+    const requested: unknown[] = [];
+    const driver: Context["driver"] = (options) => {
+      requested.push(options.fill ?? false);
+      return teamsDriver();
+    };
+    await run(["edit", "Nobody", "1", "--text", "x"], context(driver));
+    await run(["delete", "Nobody", "1"], context(driver));
+    await run(["undo-delete", "Nobody", "1"], context(driver));
+    expect(requested).toEqual([true, false, false]);
+  });
+});
+
 describe("setup claude", () => {
   it("shows the changes without writing or starting a browser", async () => {
     const ctx = context(noBrowser);
@@ -180,7 +209,12 @@ describe("setup claude", () => {
     const report = JSON.parse(out).data;
     expect(report.written).toBe(false);
     expect(report.added.allow).toContain("Bash(clerkhand-teams read *)");
-    expect(report.added.ask).toEqual(["Bash(clerkhand-teams send *)"]);
+    expect(report.added.ask).toEqual([
+      "Bash(clerkhand-teams send *)",
+      "Bash(clerkhand-teams edit *)",
+      "Bash(clerkhand-teams delete *)",
+      "Bash(clerkhand-teams undo-delete *)",
+    ]);
     expect(report.added.deny).toContain("Bash(agent-browser *)");
     expect(existsSync(report.settingsPath)).toBe(false);
   });

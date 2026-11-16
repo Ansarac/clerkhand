@@ -43,6 +43,7 @@ describe("readMessages", () => {
         time: "2023-11-14T22:13:20.000Z",
         text: "Hello there",
         edited: false,
+        deleted: false,
       },
       {
         id: "1700000060000",
@@ -50,6 +51,7 @@ describe("readMessages", () => {
         time: "2023-11-14T22:14:20.000Z",
         text: "Fixed",
         edited: true,
+        deleted: false,
       },
       {
         id: "1700000120000",
@@ -57,8 +59,22 @@ describe("readMessages", () => {
         time: "2023-11-14T22:15:20.000Z",
         text: "image",
         edited: false,
+        deleted: false,
       },
     ]);
+  });
+
+  it("marks a deleted message and drops its placeholder text", () => {
+    document.querySelector('[data-tid="message-pane-list-viewport"]')?.insertAdjacentHTML(
+      "beforeend",
+      `<div data-tid="chat-pane-item">
+        <div data-tid="chat-pane-message" data-mid="1700000180000" role="group">
+          <div id="content-1700000180000" data-tid="message-tombstone"><span>Deleted</span></div>
+        </div>
+      </div>`,
+    );
+    const last = inPage(readMessages)().messages.at(-1);
+    expect(last).toMatchObject({ id: "1700000180000", text: "", deleted: true });
   });
 
   it("reports no open chat when there is no chat header", () => {

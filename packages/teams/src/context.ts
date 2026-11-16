@@ -5,7 +5,7 @@ import type { Clock } from "./teams.js";
 export interface Context {
   /**
    * Creates the browser driver; only commands that need the browser call it.
-   * `fill` additionally allows filling a field; only `draft` asks for it.
+   * `fill` additionally allows filling a field; only `draft` and `edit` ask for it.
    */
   driver: (options: { headed: boolean; fill?: boolean }) => Driver;
   home: string;

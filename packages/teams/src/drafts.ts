@@ -21,13 +21,18 @@ export interface Draft {
   hash: string;
 }
 
-/** The editor adds a trailing line break and may differ in line endings and trailing spaces. */
-function normalize(text: string): string {
+/**
+ * The editor adds a trailing line break and may differ in line endings and
+ * trailing spaces; `read` collapses runs of blank lines. The page functions
+ * that re-check text before clicking repeat these steps.
+ */
+export function normalize(text: string): string {
   return text
     .replace(/\r\n?/gu, "\n")
     .split("\n")
     .map((line) => line.trimEnd())
     .join("\n")
+    .replace(/\n{3,}/gu, "\n\n")
     .trim();
 }
 

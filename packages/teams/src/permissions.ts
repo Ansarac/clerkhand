@@ -11,7 +11,7 @@ export const SKILL_NAME = "clerkhand-teams";
 export const ALLOWED_COMMANDS = ["status", "chats", "read", "draft"] as const;
 
 /** Commands others can see. Every call needs the user's approval. */
-export const ASK_COMMANDS = ["send"] as const;
+export const ASK_COMMANDS = ["send", "edit", "delete", "undo-delete"] as const;
 
 export const PERMISSIONS: PermissionRules = {
   allow: ALLOWED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),

@@ -10,7 +10,7 @@ export const VIEWPORT = { width: 1280, height: 900 } as const;
 /** agent-browser action names this tool needs. Everything else is denied. */
 export const ALLOWED_ACTIONS = ["navigate", "viewport", "evaluate", "wait", "close"] as const;
 /**
- * `draft` also fills the compose box. `fill` inserts text without key events,
+ * `draft` and `edit` also fill a text box. `fill` inserts text without key events,
  * so it cannot press Enter; a newline becomes a line break. Key presses and
  * typing (`press`, `type`, `keyboard`) stay denied everywhere.
  */

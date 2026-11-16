@@ -94,13 +94,14 @@ export function clickSend(target: SendTarget): SendResult {
   if (boxes.length !== 1 || !box) {
     return { clicked: false, reason: "compose_not_found" };
   }
-  // Same normalization as the CLI: line endings, trailing spaces, outer blank lines.
+  // Same normalization as the CLI's `normalize`.
   // biome-ignore lint/performance/useDomNodeTextContent: innerText keeps the line breaks of paragraphs.
   const current = box.innerText
     .replace(/\r\n?/gu, "\n")
     .split("\n")
     .map((line) => line.trimEnd())
     .join("\n")
+    .replace(/\n{3,}/gu, "\n\n")
     .trim();
   if (current === "" || current !== target.text) {
     return { clicked: false, reason: "draft_changed" };
