@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ALLOWED_COMMANDS, BIN, PERMISSIONS, SKILL_NAME, skillPath } from "../src/permissions.js";
+import { COMMANDS } from "../src/main.js";
+import {
+  ALLOWED_COMMANDS,
+  ASK_COMMANDS,
+  BIN,
+  PERMISSIONS,
+  SKILL_NAME,
+  skillPath,
+} from "../src/permissions.js";
 import { ALLOWED_ACTIONS, DRAFT_ACTIONS } from "../src/teams.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -15,8 +23,18 @@ describe("permission rules", () => {
     expect(PERMISSIONS.allow).toEqual(ALLOWED_COMMANDS.map((c) => `Bash(${BIN} ${c} *)`));
   });
 
+  it("ask before every command others can see", () => {
+    expect(PERMISSIONS.ask).toEqual(ASK_COMMANDS.map((c) => `Bash(${BIN} ${c} *)`));
+    expect(ASK_COMMANDS).toContain("send");
+  });
+
+  it("cover every command except login and setup, which need no rule", () => {
+    const covered = new Set<string>([...ALLOWED_COMMANDS, ...ASK_COMMANDS, "login", "setup"]);
+    expect(Object.keys(COMMANDS).filter((c) => !covered.has(c))).toEqual([]);
+  });
+
   it("refer only to commands the CLI has", () => {
-    for (const command of ALLOWED_COMMANDS) {
+    for (const command of [...ALLOWED_COMMANDS, ...ASK_COMMANDS]) {
       expect(usage).toMatch(new RegExp(`^  ${command}\\b`, "mu"));
     }
   });
@@ -55,8 +73,8 @@ describe("tool skill", () => {
     expect(skill.startsWith(`---\nname: ${SKILL_NAME}\n`)).toBe(true);
   });
 
-  it("documents every allowed command", () => {
-    for (const command of ALLOWED_COMMANDS) {
+  it("documents every command it may run", () => {
+    for (const command of [...ALLOWED_COMMANDS, ...ASK_COMMANDS]) {
       expect(skill).toContain(`${BIN} ${command}`);
     }
   });

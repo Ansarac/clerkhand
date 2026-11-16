@@ -61,3 +61,61 @@ export function readCompose(): ComposeResult {
   const text = boxes.length === 1 && box ? box.innerText : "";
   return { chatId, boxes: boxes.length, text };
 }
+
+export interface SendTarget {
+  chatId: string;
+  /** The confirmed draft, normalized; the box must still hold exactly this. */
+  text: string;
+}
+
+export type SendResult =
+  | { clicked: true }
+  | {
+      clicked: false;
+      reason: "chat_changed" | "compose_not_found" | "draft_changed" | "no_button";
+    };
+
+/**
+ * Clicks Send for the open chat, but only if it is `chatId` and its compose
+ * box still holds `text`. Checking and clicking happen in one script, so
+ * nothing can change in between. Only the Send button that shares a container
+ * with the compose box (and not with the message list) is clicked.
+ */
+export function clickSend(target: SendTarget): SendResult {
+  const header = document.querySelector('[id^="chat-header-"]');
+  if (!header || header.id !== `chat-header-${target.chatId}`) {
+    return { clicked: false, reason: "chat_changed" };
+  }
+  const list = '[data-tid="message-pane-list-viewport"]';
+  const boxes = [
+    ...document.querySelectorAll<HTMLElement>('[role="textbox"][contenteditable="true"]'),
+  ].filter((el) => !el.closest(list));
+  const [box] = boxes;
+  if (boxes.length !== 1 || !box) {
+    return { clicked: false, reason: "compose_not_found" };
+  }
+  // Same normalization as the CLI: line endings, trailing spaces, outer blank lines.
+  // biome-ignore lint/performance/useDomNodeTextContent: innerText keeps the line breaks of paragraphs.
+  const current = box.innerText
+    .replace(/\r\n?/gu, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .trim();
+  if (current === "" || current !== target.text) {
+    return { clicked: false, reason: "draft_changed" };
+  }
+  let scope = box.parentElement;
+  while (scope && !scope.querySelector('button[data-tid="sendMessageCommands-send"]')) {
+    scope = scope.parentElement;
+  }
+  const buttons = scope?.querySelectorAll<HTMLButtonElement>(
+    'button[data-tid="sendMessageCommands-send"]',
+  );
+  const button = buttons?.[0];
+  if (!scope || scope.querySelector(list) || buttons?.length !== 1 || !button || button.disabled) {
+    return { clicked: false, reason: "no_button" };
+  }
+  button.click();
+  return { clicked: true };
+}

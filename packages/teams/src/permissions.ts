@@ -10,9 +10,12 @@ export const SKILL_NAME = "clerkhand-teams";
  */
 export const ALLOWED_COMMANDS = ["status", "chats", "read", "draft"] as const;
 
+/** Commands others can see. Every call needs the user's approval. */
+export const ASK_COMMANDS = ["send"] as const;
+
 export const PERMISSIONS: PermissionRules = {
   allow: ALLOWED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
-  ask: [],
+  ask: ASK_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
   // Direct driver access would bypass every check in this tool. Rules match
   // command prefixes only; the action policy in the browser is the backstop.
   deny: [

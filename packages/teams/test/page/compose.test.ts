@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
-import { COMPOSE_MARK, readCompose, selectCompose } from "../../src/page/compose.js";
+import { COMPOSE_MARK, clickSend, readCompose, selectCompose } from "../../src/page/compose.js";
 import { inPage } from "../helpers.js";
 
 // Synthetic markup modeled on the Teams chat pane. Never use real chat content here.
@@ -68,5 +68,75 @@ describe("readCompose", () => {
   it("reports no text when no compose box is shown", () => {
     document.body.innerHTML = pane("");
     expect(inPage(readCompose)()).toEqual({ chatId: CHAT, boxes: 0, text: "" });
+  });
+});
+
+describe("clickSend", () => {
+  const Send = '<button data-tid="sendMessageCommands-send">Send</button>';
+  let clicked: number;
+
+  function composer(text = "Hello", buttons = Send): string {
+    return `<div><div>${COMPOSE.replace("Hello", text)}</div><div>${buttons}</div></div>`;
+  }
+
+  function render(html: string): void {
+    document.body.innerHTML = html;
+    clicked = 0;
+    document.body.onclick = (event) => {
+      if (event.target instanceof HTMLButtonElement) {
+        clicked += 1;
+      }
+    };
+  }
+
+  it("clicks the Send button next to the compose box when the draft matches", () => {
+    render(pane(composer()));
+    expect(inPage(clickSend)({ chatId: CHAT, text: "Hello" })).toEqual({ clicked: true });
+    expect(clicked).toBe(1);
+  });
+
+  it("refuses when another chat is open", () => {
+    render(pane(composer()));
+    const result = inPage(clickSend)({ chatId: "19:other@thread.v2", text: "Hello" });
+    expect(result).toEqual({ clicked: false, reason: "chat_changed" });
+    expect(clicked).toBe(0);
+  });
+
+  it("refuses when the draft changed or is empty", () => {
+    render(pane(composer("Hello again")));
+    expect(inPage(clickSend)({ chatId: CHAT, text: "Hello" })).toMatchObject({
+      reason: "draft_changed",
+    });
+    render(pane(composer("")));
+    expect(inPage(clickSend)({ chatId: CHAT, text: "" })).toMatchObject({
+      reason: "draft_changed",
+    });
+    expect(clicked).toBe(0);
+  });
+
+  it("ignores the edit box in the message list", () => {
+    render(pane(composer(), EDIT_BOX));
+    expect(inPage(clickSend)({ chatId: CHAT, text: "Hello" })).toEqual({ clicked: true });
+  });
+
+  it("refuses when there is no single Send button beside the compose box", () => {
+    render(pane(composer("Hello", "")));
+    expect(inPage(clickSend)({ chatId: CHAT, text: "Hello" })).toMatchObject({
+      reason: "no_button",
+    });
+    render(pane(composer("Hello", Send + Send)));
+    expect(inPage(clickSend)({ chatId: CHAT, text: "Hello" })).toMatchObject({
+      reason: "no_button",
+    });
+    expect(clicked).toBe(0);
+  });
+
+  it("refuses a Send button that is only reachable through the message list", () => {
+    render(`<div id="chat-header-${CHAT}"></div>
+      <div><div data-tid="message-pane-list-viewport"></div>${COMPOSE}${Send}</div>`);
+    expect(inPage(clickSend)({ chatId: CHAT, text: "Hello" })).toMatchObject({
+      reason: "no_button",
+    });
+    expect(clicked).toBe(0);
   });
 });

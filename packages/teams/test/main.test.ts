@@ -147,6 +147,31 @@ describe("draft", () => {
   });
 });
 
+describe("send", () => {
+  it("requires one chat and a well-formed confirmation hash before starting a browser", async () => {
+    const calls = [
+      ["send"],
+      ["send", "Alpha"],
+      ["send", "Alpha", "--confirm", "abc"],
+      ["send", "Alpha", "Beta", "--confirm", "0123456789ab"],
+      ["send", "Alpha", "--text", "hi", "--confirm", "0123456789ab"],
+    ];
+    for (const argv of calls) {
+      expect((await run(argv, context(noBrowser))).code, argv.join(" ")).toBe(2);
+    }
+  });
+
+  it("never allows fill", async () => {
+    const requested: unknown[] = [];
+    const driver: Context["driver"] = (options) => {
+      requested.push(options.fill ?? false);
+      return teamsDriver();
+    };
+    await run(["send", "Nobody", "--confirm", "0123456789ab"], context(driver));
+    expect(requested).toEqual([false]);
+  });
+});
+
 describe("setup claude", () => {
   it("shows the changes without writing or starting a browser", async () => {
     const ctx = context(noBrowser);
@@ -155,6 +180,7 @@ describe("setup claude", () => {
     const report = JSON.parse(out).data;
     expect(report.written).toBe(false);
     expect(report.added.allow).toContain("Bash(clerkhand-teams read *)");
+    expect(report.added.ask).toEqual(["Bash(clerkhand-teams send *)"]);
     expect(report.added.deny).toContain("Bash(agent-browser *)");
     expect(existsSync(report.settingsPath)).toBe(false);
   });
