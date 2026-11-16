@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(clerkhand-teams status *)",
+      "Bash(clerkhand-teams chats *)",
+      "Bash(clerkhand-teams read *)"
+    ],
+    "deny": [
+      "Bash(agent-browser *)",
+      "Bash(npx agent-browser *)",
+      "Bash(pnpm exec agent-browser *)",
+      "Bash(pnpm dlx agent-browser *)"
+    ]
+  }
+}

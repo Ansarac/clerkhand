@@ -19,10 +19,16 @@ pnpm check                   # lint + typecheck + test, same as CI
 ```sh
 pnpm build
 node packages/teams/dist/cli.js status
-pnpm --dir packages/teams link --global   # optional: puts clerkhand-teams on PATH
 ```
 
-It uses the real data directory unless `CLERKHAND_HOME` is set. Test write actions only in your own self-chat, and never send (see `CLAUDE.md`).
+To put `clerkhand-teams` on PATH (pnpm 12 has no `link --global`):
+
+```sh
+pnpm setup                                        # once: adds PNPM_HOME to PATH, then open a new terminal
+pnpm add -g "link:$(pwd)/packages/teams"           # symlink, so rebuilds take effect
+```
+
+The repo's `.claude/settings.json` allows the read commands and denies running `agent-browser` directly. The CLI uses the real data directory unless `CLERKHAND_HOME` is set. Test write actions only in your own self-chat, and never send (see `CLAUDE.md`).
 
 ## Page functions
 
