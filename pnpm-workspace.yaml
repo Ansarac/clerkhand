@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+
+# Versions shared by several workspace packages; reference them with "catalog:".
+catalog:
+  vitest: 5.1.0
+
+# Dependency build scripts are opt-in. lefthook's postinstall would install git
+# hooks implicitly; run `pnpm exec lefthook install` instead (docs/development.md).
+allowBuilds:
+  lefthook: false

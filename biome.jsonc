@@ -1,0 +1,68 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["**", "!**/dist", "!pnpm-lock.yaml"] },
+  "formatter": { "indentStyle": "space", "lineWidth": 100 },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "linter": {
+    "rules": {
+      // Every stable group is fully on. Exceptions live in the overrides below,
+      // each with its reason.
+      "a11y": "error",
+      "complexity": "error",
+      "correctness": "error",
+      "nursery": "off", // Unstable rules change between patch releases.
+      "performance": "error",
+      "security": "error",
+      "style": "error",
+      "suspicious": "error"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            // Conflicts with TS noPropertyAccessFromIndexSignature, which we keep because it
+            // makes index-signature access (env vars, parsed JSON) visible at the call site.
+            "useLiteralKeys": "off"
+          },
+          "correctness": {
+            // Node-only CLI tools; there is no browser or edge runtime to stay portable to.
+            "noNodejsModules": "off"
+          },
+          "style": {
+            "useNamingConvention": {
+              "level": "error",
+              "options": {
+                "conventions": [
+                  {
+                    // Environment variable names (CLERKHAND_HOME) appear as object keys.
+                    "selector": { "kind": "objectLiteralProperty" },
+                    "formats": ["camelCase", "CONSTANT_CASE"]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // Package entry points exist to re-export the public API.
+      "includes": ["packages/*/src/index.ts"],
+      "linter": { "rules": { "performance": { "noBarrelFile": "off" } } }
+    },
+    {
+      // Tool config files must use a default export.
+      "includes": ["**/*.config.ts"],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    },
+    {
+      // Tests assert on and stub the real environment.
+      "includes": ["packages/*/test/**", "test/**"],
+      "linter": { "rules": { "style": { "noProcessEnv": "off" } } }
+    }
+  ]
+}

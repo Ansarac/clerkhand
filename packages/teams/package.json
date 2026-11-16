@@ -1,0 +1,22 @@
+{
+  "name": "@clerkhand/teams",
+  "version": "0.0.0",
+  "description": "Microsoft Teams web CLI for AI agents. Read, summarize and draft; you decide what gets sent.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "clerkhand-teams": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "dependencies": {
+    "@clerkhand/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,19 @@
+# Local-only working notes and research leftovers
+.scratch/
+
+# Browser profiles and snapshots: contain login state and real chat content
+.profiles/
+.playwright-cli/
+
+# Locally installed tools (superseded by workspace dependencies)
+tools/
+
+# Build and dependency output
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/worktrees/
