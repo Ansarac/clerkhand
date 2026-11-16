@@ -50,7 +50,7 @@ function teamsDriver(): Driver {
   });
 }
 
-function context(driver: () => Driver = teamsDriver): Context {
+function context(driver: Context["driver"] = teamsDriver): Context {
   const root = process.env["CLERKHAND_HOME"] ?? "";
   return { driver, home: join(root, "home"), cwd: join(root, "project"), clock: fakeClock() };
 }
@@ -116,6 +116,34 @@ describe("read", () => {
       code: "chat_not_found",
       details: { candidates: [{ id: "19:a@thread.v2", name: "Alpha", kind: "group" }] },
     });
+  });
+});
+
+describe("draft", () => {
+  it("rejects malformed calls before starting a browser", async () => {
+    const calls = [
+      ["draft"],
+      ["draft", "Alpha"],
+      ["draft", "Alpha", "--text", "  "],
+      ["draft", "show", "Alpha", "--text", "x"],
+      ["draft", "send", "Alpha"],
+      ["draft", "clear", "Alpha", "extra"],
+    ];
+    for (const argv of calls) {
+      expect((await run(argv, context(noBrowser))).code, argv.join(" ")).toBe(2);
+    }
+  });
+
+  it("allows fill only for commands that change the draft", async () => {
+    const requested: unknown[] = [];
+    const driver = (options: { headed: boolean; fill?: boolean }) => {
+      requested.push(options.fill ?? false);
+      return teamsDriver();
+    };
+    await run(["draft", "show", "Nobody"], context(driver));
+    await run(["draft", "clear", "Nobody"], context(driver));
+    await run(["draft", "Nobody", "--text", "hi"], context(driver));
+    expect(requested).toEqual([false, true, true]);
   });
 });
 
