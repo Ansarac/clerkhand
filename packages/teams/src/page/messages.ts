@@ -6,8 +6,11 @@ export interface Message {
   author: string | null;
   /** ISO 8601. */
   time: string | null;
+  /** Empty for a deleted message. */
   text: string;
   edited: boolean;
+  /** Deleted; the author can still restore it with `undo-delete`. */
+  deleted: boolean;
 }
 
 /** Waits until the chat with `id` is open and its message list has settled. */
@@ -53,12 +56,14 @@ export function readMessages(): { chatId: string | null; messages: Message[] } {
     const text = (rendered || content?.getAttribute("aria-label") || "")
       .replace(/\n{3,}/gu, "\n\n")
       .trim();
+    const deleted = content?.getAttribute("data-tid") === "message-tombstone";
     messages.push({
       id,
       author: part("author")?.textContent?.trim() || null,
       time: part("timestamp")?.getAttribute("datetime") ?? null,
-      text,
+      text: deleted ? "" : text,
       edited: part("edited") !== null,
+      deleted,
     });
   }
   return { chatId: header ? header.id.slice("chat-header-".length) : null, messages };

@@ -24,7 +24,7 @@ function chat(id: string, name: string): Chat {
 }
 
 function msg(id: number): Message {
-  return { id: String(id), author: "A", time: null, text: `m${id}`, edited: false };
+  return { id: String(id), author: "A", time: null, text: `m${id}`, edited: false, deleted: false };
 }
 
 describe("ensureTeams", () => {

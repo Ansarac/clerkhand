@@ -22,7 +22,7 @@ export interface Draft {
 }
 
 /** The editor adds a trailing line break and may differ in line endings and trailing spaces. */
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .replace(/\r\n?/gu, "\n")
     .split("\n")
