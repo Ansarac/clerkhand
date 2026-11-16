@@ -3,9 +3,21 @@ packages:
 
 # Versions shared by several workspace packages; reference them with "catalog:".
 catalog:
+  happy-dom: 21.0.4
   vitest: 5.1.0
 
-# Dependency build scripts are opt-in. lefthook's postinstall would install git
-# hooks implicitly; run `pnpm exec lefthook install` instead (docs/development.md).
+# Dependency build scripts are opt-in.
 allowBuilds:
+  # Its postinstall only downloads the native binary when the platform package
+  # is missing; the optional dependency already provides it.
+  agent-browser: false
+  # Its postinstall would install git hooks implicitly; run
+  # `pnpm exec lefthook install` instead (docs/development.md).
   lefthook: false
+
+# Agent skills from dependencies are opt-in.
+permissions:
+  # agent-browser's skills teach agents to drive the browser directly, which
+  # bypasses every clerkhand safety check (docs/security.md).
+  agent-browser:
+    skills: false

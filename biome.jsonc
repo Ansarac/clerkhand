@@ -30,9 +30,30 @@
           },
           "correctness": {
             // Node-only CLI tools; there is no browser or edge runtime to stay portable to.
-            "noNodejsModules": "off"
+            "noNodejsModules": "off",
+            // Qwik framework rule; this repo does not use Qwik.
+            "useQwikValidLexicalScope": "off"
+          },
+          "performance": {
+            // Polling and browser steps are sequential by design; running them in
+            // parallel would be wrong.
+            "noAwaitInLoops": "off"
+          },
+          "security": {
+            "noSecrets": {
+              "level": "error",
+              // Teams type names, folder ids and CSS selectors trip the default (41).
+              // Known token formats are still matched by pattern.
+              "options": { "entropyThreshold": 60 }
+            }
           },
           "style": {
+            // Ternaries are idiomatic for expression-level choices; noNestedTernary stays on.
+            "noTernary": "off",
+            // Types and helpers sit next to the code that uses them.
+            "useExportsLast": "off",
+            // Teams ids contain ":" and "@"; getElementById needs no CSS escaping.
+            "useDomQuerySelector": "off",
             "useNamingConvention": {
               "level": "error",
               "options": {
@@ -50,6 +71,18 @@
       }
     },
     {
+      // Biome's Markdown formatter inserts a blank line after the opening `---`
+      // of YAML frontmatter, which breaks skill files.
+      "includes": ["**/SKILL.md"],
+      "formatter": { "enabled": false }
+    },
+    {
+      // Page functions are serialized into the browser and cannot reference
+      // module scope, so regexes stay inside them.
+      "includes": ["packages/*/src/page/**"],
+      "linter": { "rules": { "performance": { "useTopLevelRegex": "off" } } }
+    },
+    {
       // Package entry points exist to re-export the public API.
       "includes": ["packages/*/src/index.ts"],
       "linter": { "rules": { "performance": { "noBarrelFile": "off" } } }
@@ -60,9 +93,20 @@
       "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
     },
     {
-      // Tests assert on and stub the real environment.
       "includes": ["packages/*/test/**", "test/**"],
-      "linter": { "rules": { "style": { "noProcessEnv": "off" } } }
+      "linter": {
+        "rules": {
+          // A describe block holds all cases for one unit.
+          "complexity": { "noExcessiveLinesPerFunction": "off", "useMaxParams": "off" },
+          "performance": { "useTopLevelRegex": "off" },
+          "style": {
+            // Tests assert on and stub the real environment.
+            "noProcessEnv": "off",
+            // Test data is literal by nature.
+            "noMagicNumbers": "off"
+          }
+        }
+      }
     }
   ]
 }

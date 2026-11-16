@@ -4,10 +4,10 @@ Command-line tools that let an AI agent (Claude Code first) handle everyday offi
 
 > Status: early development. Nothing is published yet.
 
-| Package                              | Command           | Status         |
-| ------------------------------------ | ----------------- | -------------- |
-| [`@clerkhand/teams`](packages/teams) | `clerkhand-teams` | in development |
-| [`@clerkhand/core`](packages/core)   | (library)         | in development |
+| Package                              | Command           | Status                 |
+| ------------------------------------ | ----------------- | ---------------------- |
+| [`@clerkhand/teams`](packages/teams) | `clerkhand-teams` | read-only (unreleased) |
+| [`@clerkhand/core`](packages/core)   | (library)         | in development         |
 
 ## Why
 

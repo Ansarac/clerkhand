@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import process from "node:process";
 import { describe, expect, it } from "vitest";
-import { dataHome } from "../src/paths.js";
+import { dataHome, toolPaths } from "../src/paths.js";
 
 describe("dataHome", () => {
   const home = join("/", "home", "u");
@@ -37,5 +37,17 @@ describe("dataHome", () => {
   it("is isolated to a temporary directory during tests", () => {
     expect(process.env["CLERKHAND_HOME"]).toBeTruthy();
     expect(dataHome()).toBe(process.env["CLERKHAND_HOME"]);
+  });
+});
+
+describe("toolPaths", () => {
+  it("keeps each tool's profile, policy and config under its own directory", () => {
+    const paths = toolPaths("teams", { env: { CLERKHAND_HOME: "/data" } });
+    expect(paths).toEqual({
+      root: join("/data", "teams"),
+      profileDir: join("/data", "teams", "profile"),
+      policyPath: join("/data", "teams", "action-policy.json"),
+      configPath: join("/data", "teams", "agent-browser.json"),
+    });
   });
 });

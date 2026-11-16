@@ -8,7 +8,8 @@
     "clerkhand-teams": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "engines": {
     "node": ">=26"
@@ -17,6 +18,7 @@
     "@clerkhand/core": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "happy-dom": "catalog:"
   }
 }
