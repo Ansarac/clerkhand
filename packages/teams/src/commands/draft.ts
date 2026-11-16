@@ -1,5 +1,6 @@
 import { type Command, parse, usage } from "../context.js";
-import { ensureTeams, getChats, openChat, readDraft, resolveChat, writeDraft } from "../teams.js";
+import { type Draft, readDraft, writeDraft } from "../drafts.js";
+import { ensureTeams, getChats, openChat, resolveChat } from "../teams.js";
 
 const OPEN_CHAT_TIMEOUT_MS = 20_000;
 const USAGE = `Usage: clerkhand-teams draft <chat> --text T
@@ -42,13 +43,17 @@ export const draft: Command = async (args, ctx) => {
   await ensureTeams(driver, { timeoutMs: 60_000, ...(ctx.clock ? { clock: ctx.clock } : {}) });
   const chat = resolveChat(await getChats(driver), call.query);
   await openChat(driver, chat, OPEN_CHAT_TIMEOUT_MS);
-  let text: string;
+  let result: Draft;
   if (call.action === "write") {
-    text = await writeDraft(driver, chat, call.text);
+    result = await writeDraft(driver, chat, call.text);
   } else if (call.action === "clear") {
-    text = await writeDraft(driver, chat, "");
+    result = await writeDraft(driver, chat, "");
   } else {
-    text = await readDraft(driver, chat);
+    result = await readDraft(driver, chat);
   }
-  return { chat: { id: chat.id, name: chat.name, kind: chat.kind }, draft: text };
+  return {
+    chat: { id: chat.id, name: chat.name, kind: chat.kind },
+    draft: result.text,
+    hash: result.hash,
+  };
 };

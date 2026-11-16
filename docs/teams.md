@@ -11,16 +11,17 @@ Exit codes: `0` ok, `1` error, `2` usage error.
 
 ## Commands
 
-| Command                                          | Output                                                                                 |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `login`                                          | Opens a visible window for sign-in, then closes it. `{signedIn}`                       |
-| `status`                                         | `{ready, signedIn, lang}`                                                              |
-| `chats [--unread] [--limit N]`                   | `{chats: [{id, name, kind, folder, unread, muted}]}`                                   |
-| `read <chat> [--last N]`                         | `{chat: {id, name, kind}, messages: [{id, author, time, text, edited}]}`, oldest first |
-| `draft <chat> --text T`                          | Replaces the unsent draft and reads it back. `{chat: {id, name, kind}, draft}`         |
-| `draft show <chat>`                              | `{chat, draft}`; `draft` is `""` when there is none                                    |
-| `draft clear <chat>`                             | Removes the unsent draft. `{chat, draft: ""}`                                          |
-| `setup claude [--scope user\|project] [--write]` | Shows (or writes) Claude Code permission rules and the tool skill                      |
+| Command                                          | Output                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `login`                                          | Opens a visible window for sign-in, then closes it. `{signedIn}`                          |
+| `status`                                         | `{ready, signedIn, lang}`                                                                 |
+| `chats [--unread] [--limit N]`                   | `{chats: [{id, name, kind, folder, unread, muted}]}`                                      |
+| `read <chat> [--last N]`                         | `{chat: {id, name, kind}, messages: [{id, author, time, text, edited}]}`, oldest first    |
+| `draft <chat> --text T`                          | Replaces the unsent draft and reads it back. `{chat: {id, name, kind}, draft, hash}`      |
+| `draft show <chat>`                              | `{chat, draft, hash}`; `draft` is `""` when there is none                                 |
+| `draft clear <chat>`                             | Removes the unsent draft. `{chat, draft: "", hash}`                                       |
+| `send <chat> --confirm <hash>`                   | Sends the draft if its hash is `<hash>`. `{chat, sent: {id, author, time, text, edited}}` |
+| `setup claude [--scope user\|project] [--write]` | Shows (or writes) Claude Code permission rules and the tool skill                         |
 
 Browser commands accept `--headed` to show the window for debugging.
 
@@ -29,6 +30,7 @@ Browser commands accept `--headed` to show the window for debugging.
 - `--last` defaults to 20, maximum 200. Older messages are loaded by scrolling.
 - `read` and `draft` open the chat, which marks it as read.
 - `draft` never sends. Newlines in `--text` become line breaks. The draft is the compose box content; Teams keeps it per chat.
+- `hash` is the first 12 hex digits of the SHA-256 of the draft text. `send` refuses (`draft_changed`) unless the draft still has the confirmed hash, and refuses an empty draft (`draft_empty`). It then waits up to 15 s for the message to appear in the chat; if it does not, it fails with `send_unconfirmed` and never clicks again.
 
 ## Sign-in
 

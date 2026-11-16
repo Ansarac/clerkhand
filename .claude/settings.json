@@ -6,6 +6,7 @@
       "Bash(clerkhand-teams read *)",
       "Bash(clerkhand-teams draft *)"
     ],
+    "ask": ["Bash(clerkhand-teams send *)"],
     "deny": [
       "Bash(agent-browser *)",
       "Bash(npx agent-browser *)",

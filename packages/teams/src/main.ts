@@ -3,6 +3,7 @@ import { chats } from "./commands/chats.js";
 import { draft } from "./commands/draft.js";
 import { login } from "./commands/login.js";
 import { read } from "./commands/read.js";
+import { send } from "./commands/send.js";
 import { setup } from "./commands/setup.js";
 import { status } from "./commands/status.js";
 import { type Command, type Context, usage } from "./context.js";
@@ -17,12 +18,13 @@ Commands:
   draft <chat> --text T          Replace the unsent draft of a chat (never sends)
   draft show <chat>              Show the unsent draft
   draft clear <chat>             Remove the unsent draft
+  send <chat> --confirm <hash>   Send the draft whose hash the user confirmed
   setup claude [--scope user|project] [--write]
                                  Show (or with --write, apply) Claude Code permissions and skill
 
 Browser commands accept --headed to show the window. Output is JSON.`;
 
-const COMMANDS: Record<string, Command> = { login, status, chats, read, draft, setup };
+export const COMMANDS: Record<string, Command> = { login, status, chats, read, draft, send, setup };
 
 export interface Io {
   stdout: (text: string) => void;

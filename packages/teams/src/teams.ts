@@ -1,6 +1,5 @@
 import { ClerkhandError, type Driver } from "@clerkhand/core";
 import { type Chat, clickChat, listChats } from "./page/chats.js";
-import { COMPOSE_MARK, type ComposeResult, readCompose, selectCompose } from "./page/compose.js";
 import { loadOlderMessages, type Message, readMessages, waitForChat } from "./page/messages.js";
 import { type PageState, readPageState } from "./page/state.js";
 
@@ -178,52 +177,4 @@ export async function lastMessages(driver: Driver, chat: Chat, count: number): P
     await collect();
   }
   return [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id)).slice(-count);
-}
-
-function checkCompose(result: ComposeResult, chat: Chat): string {
-  if (result.chatId !== chat.id) {
-    throw new ClerkhandError("chat_changed", `"${chat.name}" is no longer the open chat.`);
-  }
-  if (result.boxes !== 1) {
-    throw new ClerkhandError(
-      "compose_not_found",
-      `Expected one compose box in "${chat.name}", found ${result.boxes}.`,
-    );
-  }
-  return result.text;
-}
-
-/** The draft in the open chat's compose box; "" when there is none. */
-export async function readDraft(driver: Driver, chat: Chat): Promise<string> {
-  return normalize(checkCompose(await driver.evaluate(readCompose, undefined), chat));
-}
-
-/**
- * Replaces the draft of the open chat with `text` and reads it back.
- * Nothing is sent: only `fill` touches the box, and it presses no keys.
- */
-export async function writeDraft(driver: Driver, chat: Chat, text: string): Promise<string> {
-  checkCompose(await driver.evaluate(selectCompose, { chatId: chat.id, mark: COMPOSE_MARK }), chat);
-  await driver.run(["fill", `[${COMPOSE_MARK}]`, text]);
-  const actual = await readDraft(driver, chat);
-  if (actual !== normalize(text)) {
-    throw new ClerkhandError(
-      "draft_mismatch",
-      "The compose box does not hold the requested text.",
-      {
-        details: { expected: text, actual },
-      },
-    );
-  }
-  return actual;
-}
-
-/** The editor adds a trailing line break and may differ in line endings and trailing spaces. */
-function normalize(text: string): string {
-  return text
-    .replace(/\r\n?/gu, "\n")
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .trim();
 }
