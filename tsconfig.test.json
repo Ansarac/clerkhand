@@ -4,7 +4,16 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "noEmit": true
+    "noEmit": true,
+    "lib": ["es2025", "dom"]
   },
-  "include": ["packages/*/test", "test", "vitest.config.ts"]
+  "include": ["packages/*/test", "test", "vitest.config.ts"],
+  "references": [
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/teams"
+    }
+  ]
 }

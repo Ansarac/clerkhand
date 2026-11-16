@@ -1,21 +1,46 @@
-const USAGE = "Usage: clerkhand-teams <command>\n\nNo commands yet.";
+import { failure, success } from "@clerkhand/core";
+import { chats } from "./commands/chats.js";
+import { login } from "./commands/login.js";
+import { read } from "./commands/read.js";
+import { setup } from "./commands/setup.js";
+import { status } from "./commands/status.js";
+import { type Command, type Context, usage } from "./context.js";
+
+const USAGE = `Usage: clerkhand-teams <command> [options]
+
+Commands:
+  login                          Open a browser window to sign in to Teams
+  status                         Check that Teams is signed in and ready
+  chats [--unread] [--limit N]   List chats in the sidebar
+  read <chat> [--last N]         Read the last N messages (default 20); marks the chat as read
+  setup claude [--scope user|project] [--write]
+                                 Show (or with --write, apply) Claude Code permissions and skill
+
+Browser commands accept --headed to show the window. Output is JSON.`;
+
+const COMMANDS: Record<string, Command> = { login, status, chats, read, setup };
 
 export interface Io {
   stdout: (text: string) => void;
 }
 
 /** Runs the CLI and returns the process exit code. */
-export function main(argv: readonly string[], io: Io): number {
-  const [command] = argv;
-  if (command === undefined || command === "--help" || command === "-h") {
+export async function main(argv: readonly string[], io: Io, ctx: Context): Promise<number> {
+  const [name, ...args] = argv;
+  if (name === undefined || name === "--help" || name === "-h") {
     io.stdout(USAGE);
     return 0;
   }
-  io.stdout(
-    JSON.stringify({
-      ok: false,
-      error: { code: "unknown_command", message: `Unknown command: ${command}` },
-    }),
-  );
-  return 2;
+  try {
+    const command = COMMANDS[name];
+    if (!command) {
+      throw usage(`Unknown command: ${name}. Run clerkhand-teams --help.`);
+    }
+    io.stdout(success(await command(args, ctx)));
+    return 0;
+  } catch (error) {
+    const { text, exitCode } = failure(error);
+    io.stdout(text);
+    return exitCode;
+  }
 }
