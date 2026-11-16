@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type Chat, clickChat, listChats } from "../src/page/chats.js";
+import { readCompose, selectCompose } from "../src/page/compose.js";
 import {
   loadOlderMessages,
   type Message,
@@ -226,7 +227,16 @@ describe("lastMessages", () => {
 
 describe("page functions used by commands", () => {
   it("are distinct functions so fakes can tell them apart", () => {
-    const fns = [readPageState, listChats, clickChat, waitForChat, readMessages, loadOlderMessages];
+    const fns = [
+      readPageState,
+      listChats,
+      clickChat,
+      waitForChat,
+      readMessages,
+      loadOlderMessages,
+      selectCompose,
+      readCompose,
+    ];
     expect(new Set(fns).size).toBe(fns.length);
   });
 });

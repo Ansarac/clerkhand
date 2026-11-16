@@ -17,6 +17,9 @@ Exit codes: `0` ok, `1` error, `2` usage error.
 | `status`                                         | `{ready, signedIn, lang}`                                                              |
 | `chats [--unread] [--limit N]`                   | `{chats: [{id, name, kind, folder, unread, muted}]}`                                   |
 | `read <chat> [--last N]`                         | `{chat: {id, name, kind}, messages: [{id, author, time, text, edited}]}`, oldest first |
+| `draft <chat> --text T`                          | Replaces the unsent draft and reads it back. `{chat: {id, name, kind}, draft}`         |
+| `draft show <chat>`                              | `{chat, draft}`; `draft` is `""` when there is none                                    |
+| `draft clear <chat>`                             | Removes the unsent draft. `{chat, draft: ""}`                                          |
 | `setup claude [--scope user\|project] [--write]` | Shows (or writes) Claude Code permission rules and the tool skill                      |
 
 Browser commands accept `--headed` to show the window for debugging.
@@ -24,7 +27,8 @@ Browser commands accept `--headed` to show the window for debugging.
 - `kind` is `oneOnOne`, `group`, `meeting`, `self` or `other`.
 - `<chat>` is a chat `id` (stable Teams thread id, preferred) or a display name. Names match exactly, then case-insensitively; duplicates fail with `ambiguous_chat` and candidates. Nothing is guessed.
 - `--last` defaults to 20, maximum 200. Older messages are loaded by scrolling.
-- `read` marks the chat as read.
+- `read` and `draft` open the chat, which marks it as read.
+- `draft` never sends. Newlines in `--text` become line breaks. The draft is the compose box content; Teams keeps it per chat.
 
 ## Sign-in
 

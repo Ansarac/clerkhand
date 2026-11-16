@@ -3,7 +3,8 @@
     "allow": [
       "Bash(clerkhand-teams status *)",
       "Bash(clerkhand-teams chats *)",
-      "Bash(clerkhand-teams read *)"
+      "Bash(clerkhand-teams read *)",
+      "Bash(clerkhand-teams draft *)"
     ],
     "deny": [
       "Bash(agent-browser *)",

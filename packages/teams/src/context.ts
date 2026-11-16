@@ -3,8 +3,11 @@ import { ClerkhandError, type Driver, EXIT_USAGE } from "@clerkhand/core";
 import type { Clock } from "./teams.js";
 
 export interface Context {
-  /** Creates the browser driver; only commands that need the browser call it. */
-  driver: (options: { headed: boolean }) => Driver;
+  /**
+   * Creates the browser driver; only commands that need the browser call it.
+   * `fill` additionally allows filling a field; only `draft` asks for it.
+   */
+  driver: (options: { headed: boolean; fill?: boolean }) => Driver;
   home: string;
   cwd: string;
   clock?: Clock;
