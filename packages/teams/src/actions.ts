@@ -3,11 +3,13 @@ import { normalize } from "./drafts.js";
 import {
   type ActionResult,
   clickDelete,
+  clickEdit,
   clickUndoDelete,
+  discardEditor,
   dismissMenus,
-  finishEditor,
-  openEditor,
+  openActions,
   readEditor,
+  saveEditor,
 } from "./page/actions.js";
 import type { Chat } from "./page/chats.js";
 import { loadOlderMessages, type Message, readMessages } from "./page/messages.js";
@@ -44,13 +46,15 @@ export async function findMessage(driver: Driver, chat: Chat, id: string): Promi
   }
 }
 
+function refuse(code: string, message: string): never {
+  throw new ClerkhandError(code, `Nothing changed: ${message}`);
+}
+
+/** Throws for a failed page step, after closing any popover it left open. */
 async function check(driver: Driver, result: ActionResult): Promise<void> {
   if (!result.ok) {
     await driver.evaluate(dismissMenus, undefined);
-    throw new ClerkhandError(
-      result.reason,
-      `Nothing changed: ${result.reason.replaceAll("_", " ")}.`,
-    );
+    refuse(result.reason, `${result.reason.replaceAll("_", " ")}.`);
   }
 }
 
@@ -81,6 +85,36 @@ async function confirm(
   }
 }
 
+/** Discards the open edit and reports whether Teams actually closed the editor. */
+async function discard(driver: Driver, code: string, why: string, details?: unknown) {
+  const { closed } = await driver.evaluate(discardEditor, EDIT_MARK);
+  const outcome = closed
+    ? "The edit was discarded; the message is unchanged."
+    : "The editor may still be open in Teams; check the chat.";
+  return new ClerkhandError(code, `${why} ${outcome}`, { details });
+}
+
+/** Fills the open editor, reads it back and saves it; discards it on any failure. */
+async function fillAndSave(driver: Driver, chat: Chat, text: string): Promise<void> {
+  let state: { editing: boolean; text: string };
+  try {
+    await driver.run(["fill", `[${EDIT_MARK}]`, text]);
+    state = await driver.evaluate(readEditor, EDIT_MARK);
+  } catch (error) {
+    throw await discard(driver, "edit_failed", `Filling the editor failed: ${String(error)}.`);
+  }
+  if (!state.editing || normalize(state.text) !== normalize(text)) {
+    throw await discard(driver, "edit_mismatch", "The edit box did not hold the new text.", {
+      expected: text,
+      actual: state.text,
+    });
+  }
+  const save = { chatId: chat.id, mark: EDIT_MARK, text: normalize(text) };
+  if (!(await driver.evaluate(saveEditor, save)).clicked) {
+    throw await discard(driver, "action_unavailable", "Done could not be clicked.");
+  }
+}
+
 /**
  * Replaces the text of the user's own message `id`. The new text is filled into
  * Teams' edit box and read back before "Done" is clicked; on a mismatch the
@@ -92,25 +126,20 @@ export async function editMessage(
   { id, text }: { id: string; text: string },
   clock: Clock = realClock,
 ): Promise<Message> {
-  await findMessage(driver, chat, id);
-  await check(driver, await driver.evaluate(openEditor, { chatId: chat.id, id, mark: EDIT_MARK }));
-  await driver.run(["fill", `[${EDIT_MARK}]`, text]);
-  const state = await driver.evaluate(readEditor, EDIT_MARK);
-  if (!state.editing || normalize(state.text) !== normalize(text)) {
-    await driver.evaluate(finishEditor, { mark: EDIT_MARK, action: "cancel" });
-    throw new ClerkhandError(
-      "edit_mismatch",
-      "The edit box did not hold the new text; discarded.",
-      {
-        details: { expected: text, actual: state.text },
-      },
-    );
+  const current = await findMessage(driver, chat, id);
+  if (current.deleted) {
+    refuse("message_deleted", "the message is deleted.");
   }
-  if (!(await driver.evaluate(finishEditor, { mark: EDIT_MARK, action: "done" })).clicked) {
-    await driver.evaluate(finishEditor, { mark: EDIT_MARK, action: "cancel" });
-    throw new ClerkhandError("action_unavailable", "No Done button for the edit; discarded.");
+  if (normalize(current.text) === normalize(text)) {
+    refuse("unchanged", "the message already has this text.");
   }
-  return confirm(
+  await check(driver, await driver.evaluate(openActions, { chatId: chat.id, id }));
+  const opened = await driver.evaluate(clickEdit, { chatId: chat.id, id, mark: EDIT_MARK });
+  if (!opened.ok) {
+    throw await discard(driver, opened.reason, "The editor did not open.");
+  }
+  await fillAndSave(driver, chat, text);
+  const edited = await confirm(
     driver,
     chat,
     {
@@ -121,6 +150,10 @@ export async function editMessage(
     },
     clock,
   );
+  if ((await driver.evaluate(readEditor, EDIT_MARK)).editing) {
+    throw new ClerkhandError("edit_unconfirmed", "The editor is still open; check the chat.");
+  }
+  return edited;
 }
 
 /** Deletes the user's own message `id`. */
@@ -130,7 +163,10 @@ export async function deleteMessage(
   id: string,
   clock: Clock = realClock,
 ): Promise<Message> {
-  await findMessage(driver, chat, id);
+  if ((await findMessage(driver, chat, id)).deleted) {
+    refuse("already_deleted", "the message is already deleted.");
+  }
+  await check(driver, await driver.evaluate(openActions, { chatId: chat.id, id }));
   await check(driver, await driver.evaluate(clickDelete, { chatId: chat.id, id }));
   return confirm(
     driver,
@@ -151,7 +187,9 @@ export async function undoDelete(
   id: string,
   clock: Clock = realClock,
 ): Promise<Message> {
-  await findMessage(driver, chat, id);
+  if (!(await findMessage(driver, chat, id)).deleted) {
+    refuse("not_deleted", "the message is not deleted.");
+  }
   await check(driver, await driver.evaluate(clickUndoDelete, { chatId: chat.id, id }));
   return confirm(
     driver,

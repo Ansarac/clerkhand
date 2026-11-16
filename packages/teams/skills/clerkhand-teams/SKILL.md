@@ -65,6 +65,6 @@ description: Read and summarize the user's Microsoft Teams chats and draft, send
 | `draft_changed`, `draft_empty`     | Not sent. Show the user `details.draft` and ask again before sending.     |
 | `send_unconfirmed`                 | Send was clicked but not confirmed. Do not retry; `read` the chat to check. |
 | `no_button`                        | Not sent. Report the message.                                             |
-| `message_not_found`, `not_own_message`, `already_editing`, `action_unavailable` | Nothing changed. Report the message.  |
-| `edit_mismatch`                    | Edit discarded; the message is unchanged. Report `details`.               |
+| `message_not_found`, `not_own_message`, `already_editing`, `menu_open`, `action_unavailable`, `unchanged`, `message_deleted`, `already_deleted`, `not_deleted` | Nothing changed. Report the message. |
+| `edit_mismatch`, `edit_failed`     | Report the message as is: it says whether the edit was discarded or the editor may still be open. |
 | `edit_unconfirmed`, `delete_unconfirmed`, `undo_unconfirmed` | The click happened but was not confirmed. Do not retry; `read` the chat to check. |
