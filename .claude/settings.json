@@ -6,16 +6,15 @@
       "Bash(clerkhand-teams read *)",
       "Bash(clerkhand-teams auth status *)",
       "Bash(clerkhand-teams auth refresh *)",
-      "Bash(clerkhand-teams whoami *)"
+      "Bash(clerkhand-teams whoami *)",
+      "Bash(clerkhand-teams draft *)"
     ],
-    "ask": [],
+    "ask": ["Bash(clerkhand-teams send *)"],
     "deny": [
       "Bash(agent-browser *)",
       "Bash(npx agent-browser *)",
       "Bash(pnpm exec agent-browser *)",
       "Bash(pnpm dlx agent-browser *)",
-      "Bash(clerkhand-teams draft *)",
-      "Bash(clerkhand-teams send *)",
       "Bash(clerkhand-teams edit *)",
       "Bash(clerkhand-teams delete *)",
       "Bash(clerkhand-teams undo-delete *)",

@@ -2,7 +2,7 @@
 
 Teams authentication tools and read workflows for AI agents. A dedicated browser profile handles normal sign-in; a small built-in GET-only client reads chat data from the Teams chat service. clerkhand keeps credentials local and returns bounded JSON to the agent.
 
-> Unreleased migration: authentication and read-only workflows. Message writes and server search are not available.
+> Unreleased: authentication, reads, and sending to your own self-chat only. Editing, deleting and server search are not available.
 
 | Package                              | Purpose                                                         |
 | ------------------------------------ | --------------------------------------------------------------- |

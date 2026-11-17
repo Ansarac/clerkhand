@@ -1,6 +1,7 @@
 import { ClerkhandError, failure, success } from "@clerkhand/core";
 import { auth } from "./commands/auth.js";
 import { chats, read, whoami } from "./commands/read.js";
+import { draft, send } from "./commands/send.js";
 import { setup } from "./commands/setup.js";
 import { type Command, type Context, usage } from "./context.js";
 
@@ -11,15 +12,19 @@ const USAGE = `Usage: clerkhand-teams <command> [options]
   whoami                         Verify identity with Teams
   chats [--limit N] [--unread]    List chats (default 20, max 200)
   read <chat-id|self> [--last N]   Read recent messages (default 20, max 200)
+  draft self --text T             Preview a self-chat message and its confirmation hash
+  send self --text T --confirm H  Send that exact text to the self-chat
   setup claude [--scope user|project] [--write]
-Message writes and search are not available. Output is JSON.`;
-const WRITES = new Set(["draft", "send", "edit", "delete", "undo-delete"]);
+Only the self-chat can receive messages; edit, delete and search are not available. Output is JSON.`;
+const WRITES = new Set(["edit", "delete", "undo-delete"]);
 export const COMMANDS: Record<string, Command> = {
   auth,
   status: (args, ctx) => auth(["status", ...args], ctx),
   whoami,
   chats,
   read,
+  draft,
+  send,
   setup,
 };
 export async function main(
@@ -36,7 +41,7 @@ export async function main(
     if (WRITES.has(name)) {
       throw new ClerkhandError(
         "write_disabled",
-        "Message writes are disabled on the authentication and read-only migration.",
+        "Editing, deleting and restoring messages are disabled in this version.",
       );
     }
     const command = Object.hasOwn(COMMANDS, name) ? COMMANDS[name] : undefined;

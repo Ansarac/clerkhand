@@ -10,13 +10,16 @@ export const ALLOWED_COMMANDS = [
   "whoami",
   "chats",
   "read",
+  "draft",
 ] as const;
-export const DISABLED_COMMANDS = ["draft", "send", "edit", "delete", "undo-delete"] as const;
+/** Visible to others (here: the user's other devices); every call needs approval. */
+export const ASK_COMMANDS = ["send"] as const;
+export const DISABLED_COMMANDS = ["edit", "delete", "undo-delete"] as const;
 
 /** Prefix rules are a cooperative agent boundary; arbitrary shell/code access requires a sandbox. */
 export const PERMISSIONS: PermissionRules = {
   allow: ALLOWED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
-  ask: [],
+  ask: ASK_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
   deny: [
     ...DISABLED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
     // The browser driver can reach the authenticated profile; only clerkhand may run it.

@@ -1,6 +1,10 @@
 # Security model
 
-This migration exposes authentication and reads. `draft`, `send`, `edit`, `delete` and `undo-delete` fail with `write_disabled` before a browser or network request is started. There is no arbitrary browser, shell or HTTP pass-through.
+This version exposes authentication, reads and sending to the user's own self-chat. `edit`, `delete` and `undo-delete` fail with `write_disabled` before a browser or network request is started. There is no arbitrary browser, shell or HTTP pass-through.
+
+## Sending
+
+`draft self --text T` makes no network request; it returns the text and a 12-character hash of target and text. `send self --text T --confirm <hash>` recomputes the hash and refuses with `draft_changed` (without revealing the correct hash) if the text differs, so changed text needs a new draft and a new approval. Any target other than `self` fails with `send_target_disabled`, and the API function itself only addresses `48:notes`. Messages are sent as plain `Text`, never HTML. A send is retried only after Teams explicitly rejected the credential (HTTP 401, nothing sent); if the request does not complete, the result is `send_unconfirmed` and the tool never retries, since retrying could duplicate the message.
 
 ## Authentication and credentials
 
@@ -14,9 +18,9 @@ Directories receive a current-user Windows ACL when created, or mode 0700 on Uni
 
 ## Agent permissions
 
-`clerkhand-teams setup claude` installs the maintained skill and rules for authentication and reads. It retires exact old clerkhand write allow/ask rules, preserves unrelated configuration and adds denies for disabled writes and direct `agent-browser` entrypoints (common package runners and Node paths).
+`clerkhand-teams setup claude` installs the maintained skill and rules: reads and `draft` are allowed, `send` always asks. It retires exact obsolete clerkhand allow/ask rules, preserves unrelated configuration and adds denies for disabled writes and direct `agent-browser` entrypoints (common package runners and Node paths).
 
-The wrapper's fixed command allowlist is enforced in code. Agent permission rules are a cooperative boundary: aliases, arbitrary scripts, alternative interpreters and absolute binary paths can escape prefix rules. A process with unrestricted shell and filesystem access can read credentials and call Teams directly. For a hard boundary, enforce a sandbox or an external execution policy. Permission bypass mode does not validate approval dialogs. This migration does not claim writes are safe under unrestricted execution.
+The wrapper's fixed command allowlist is enforced in code. Agent permission rules are a cooperative boundary: aliases, arbitrary scripts, alternative interpreters and absolute binary paths can escape prefix rules. A process with unrestricted shell and filesystem access can read credentials and call Teams directly. For a hard boundary, enforce a sandbox or an external execution policy. Permission bypass mode does not validate approval dialogs. In bypass mode, `send` is not prompted; the draft/confirm step and the self-only target are then the remaining safeguards.
 
 ## Reads and output
 
