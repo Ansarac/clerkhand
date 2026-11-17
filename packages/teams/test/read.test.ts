@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { listConversations } from "../src/api.js";
 import { main } from "../src/main.js";
 import { compactChats, compactMessages, htmlToText, withReadSession } from "../src/read.js";
-import { context, teamsService } from "./helpers.js";
+import { context, teamsService, USER_ID } from "./helpers.js";
 
 function run(argv: string[], ctx: ReturnType<typeof context>["ctx"]) {
   let output = "";
@@ -82,18 +82,60 @@ describe("bounded read workflows", () => {
         { id: "19:meeting@thread.v2", threadProperties: { threadType: "meeting" } },
       ],
       2,
+      { userId: USER_ID },
     );
     expect(result.chats).toEqual([
-      { id: "48:notes", kind: "self", name: "", lastMessage: "Hi&bye", lastMessageAt: "" },
+      {
+        id: "48:notes",
+        kind: "self",
+        name: "",
+        lastMessage: "Hi&bye",
+        lastMessageAt: "",
+        unread: false,
+      },
       {
         id: "19:a_b@unq.gbl.spaces",
         kind: "oneOnOne",
         name: "",
         lastMessage: "",
         lastMessageAt: "",
+        unread: false,
       },
     ]);
     expect(result.truncated).toBe(true);
+  });
+  it("marks chats unread from the read marker, ignoring the user's own messages", () => {
+    const chat = (
+      id: string,
+      lastId: string,
+      readId: string | undefined,
+      from = "8:orgid:other",
+    ) => ({
+      id,
+      threadProperties: { threadType: "chat" },
+      lastMessage: {
+        id: lastId,
+        from: `https://emea.ng.msg.teams.microsoft.com/v1/users/ME/contacts/${from}`,
+      },
+      properties: readId === undefined ? {} : { consumptionhorizon: `${readId};${readId};0` },
+    });
+    const conversations = [
+      chat("19:unread@thread.v2", "200", "100"),
+      chat("19:read@thread.v2", "200", "200"),
+      chat("19:mine@thread.v2", "200", "100", `8:orgid:${USER_ID}`),
+      chat("19:unknown@thread.v2", "200", undefined),
+    ];
+    expect(
+      compactChats(conversations, 10, { userId: USER_ID }).chats.map((c) => [c.id, c.unread]),
+    ).toEqual([
+      ["19:unread@thread.v2", true],
+      ["19:read@thread.v2", false],
+      ["19:mine@thread.v2", false],
+      ["19:unknown@thread.v2", null],
+    ]);
+    const unread = compactChats(conversations, 10, { userId: USER_ID, unreadOnly: true });
+    expect(unread.chats.map((c) => c.id)).toEqual(["19:unread@thread.v2"]);
+    expect(unread.truncated).toBe(false);
   });
   it("bounds text, reports edits and deletions, and omits HTML and raw fields", () => {
     const result = compactMessages(

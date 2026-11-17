@@ -19,11 +19,11 @@ After installing the package CLI, replace `node packages/teams/dist/cli.js` with
 | `auth status` / `status`             | Local credential expiry check; does not prove online validity.                                                                   |
 | `auth refresh [--headed] [--wait N]` | Get and verify a Skype token from the dedicated profile. Default 30 seconds; maximum 300. First login normally needs `--headed`. |
 | `whoami`                             | Verify identity online; returns display name without credentials.                                                                |
-| `chats [--limit N]`                  | List self, 1:1 and group chats, default 20, maximum 200; use returned exact IDs.                                                 |
+| `chats [--limit N] [--unread]`       | List self, 1:1 and group chats, default 20, maximum 200; use returned exact IDs.                                                 |
 | `read <chat-id                       | self> [--last N]`                                                                                                                | Recent history, oldest first; default 20, maximum 200. |
 | `setup claude [--scope user          | project] [--write]`                                                                                                              | Preview or apply the maintained skill and permissions. |
 
-Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Chat display names, team channels, unread filtering, search and message writes are not supported.
+Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Each chat has `unread` (`true`, `false`, or `null` when Teams gives no read marker); `chats --unread` lists only unread chats. Chat display names, team channels, search and message writes are not supported.
 
 ## Troubleshooting
 

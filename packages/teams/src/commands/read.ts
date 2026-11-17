@@ -14,12 +14,16 @@ export const whoami: Command = async (args, ctx) => {
   return { displayName: name.slice(0, MAX_NAME_LENGTH), verified: true };
 };
 
-export const chats: Command = async (args, ctx) => {
-  const { values } = parse(args, { options: { limit: { type: "string" } } });
+export const chats: Command = (args, ctx) => {
+  const { values } = parse(args, {
+    options: { limit: { type: "string" }, unread: { type: "boolean" } },
+  });
   const count = limit(values.limit);
-  return compactChats(
-    await withReadSession(ctx, (session) => listConversations(ctx.fetch, session)),
-    count,
+  return withReadSession(ctx, async (session) =>
+    compactChats(await listConversations(ctx.fetch, session), count, {
+      userId: session.userId,
+      unreadOnly: values.unread ?? false,
+    }),
   );
 };
 

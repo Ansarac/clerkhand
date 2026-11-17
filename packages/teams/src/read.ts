@@ -12,9 +12,12 @@ const REFRESH = { headed: false, waitSeconds: 30 };
  * Runs read-only `action` with a valid session. One initial refresh OR one refresh after an
  * authentication rejection; the action is re-run at most once and never loops.
  */
+export interface ReadSession extends Session {
+  userId: string;
+}
 export function withReadSession<T>(
   ctx: Context,
-  action: (session: Session) => Promise<T>,
+  action: (session: ReadSession) => Promise<T>,
 ): Promise<T> {
   return withLock(ctx.paths, async () => {
     let refreshed = false;
@@ -38,12 +41,12 @@ export function withReadSession<T>(
   });
 }
 
-function session(ctx: Context): Session {
+function session(ctx: Context): ReadSession {
   const credential = loadCredential(ctx.paths.credentialsPath);
   if (!credential) {
     throw new ClerkhandError("authentication_failed", "No managed credential after refresh.");
   }
-  return { token: credential.token, messageApi: credential.messageApi };
+  return { token: credential.token, messageApi: credential.messageApi, userId: credential.userId };
 }
 
 function text(value: unknown, max = MAX_FIELD): string {
@@ -67,7 +70,33 @@ export function chatKind(id: string, properties: Record<string, unknown>): strin
   return id.endsWith("@unq.gbl.spaces") ? "oneOnOne" : "group";
 }
 
-export function compactChats(conversations: unknown[], limit: number) {
+/**
+ * Unread when the last message is newer than the chat's read marker (`consumptionhorizon`,
+ * "lastReadId;time;...") and was not sent by the user. `null` when Teams gives no marker.
+ */
+export function isUnread(conversation: Record<string, unknown>, userId: string): boolean | null {
+  const last = record(conversation["lastMessage"]);
+  const lastId = Number(last["id"]);
+  if (!Number.isSafeInteger(lastId)) {
+    return false;
+  }
+  if (
+    String(last["from"] ?? "")
+      .toLowerCase()
+      .endsWith(`8:orgid:${userId}`)
+  ) {
+    return false;
+  }
+  const horizon = record(conversation["properties"])["consumptionhorizon"];
+  const readId = typeof horizon === "string" ? Number(horizon.split(";")[0]) : Number.NaN;
+  return Number.isSafeInteger(readId) ? lastId > readId : null;
+}
+
+export function compactChats(
+  conversations: unknown[],
+  limit: number,
+  options: { userId: string; unreadOnly?: boolean },
+) {
   const chats = conversations.flatMap((item) => {
     const conversation = record(item);
     const id = conversation["id"];
@@ -79,6 +108,10 @@ export function compactChats(conversations: unknown[], limit: number) {
     if (!kind) {
       return [];
     }
+    const unread = isUnread(conversation, options.userId);
+    if (options.unreadOnly && unread !== true) {
+      return [];
+    }
     const last = record(conversation["lastMessage"]);
     return [
       {
@@ -87,6 +120,7 @@ export function compactChats(conversations: unknown[], limit: number) {
         name: text(properties["topic"]),
         lastMessage: htmlToText(text(last["content"], MAX_TEXT)),
         lastMessageAt: text(last["composetime"] ?? last["originalarrivaltime"]),
+        unread,
       },
     ];
   });

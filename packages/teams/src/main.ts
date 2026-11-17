@@ -9,7 +9,7 @@ const USAGE = `Usage: clerkhand-teams <command> [options]
   auth refresh [--headed] [--wait N]   Refresh and verify credentials (default wait 30s, max 300s)
   status                         Alias for auth status
   whoami                         Verify identity with Teams
-  chats [--limit N]               List chats (default 20, max 200)
+  chats [--limit N] [--unread]    List chats (default 20, max 200)
   read <chat-id|self> [--last N]   Read recent messages (default 20, max 200)
   setup claude [--scope user|project] [--write]
 Message writes and search are not available. Output is JSON.`;
