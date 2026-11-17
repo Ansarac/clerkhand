@@ -19,12 +19,11 @@ After installing the package CLI, replace `node packages/teams/dist/cli.js` with
 | `auth status` / `status`             | Local credential expiry check; does not prove online validity.                                                                   |
 | `auth refresh [--headed] [--wait N]` | Get and verify a Skype token from the dedicated profile. Default 30 seconds; maximum 300. First login normally needs `--headed`. |
 | `whoami`                             | Verify identity online; returns display name without credentials.                                                                |
-| `chats [--limit N]`                  | List chats, default 20, maximum 200; use returned exact IDs.                                                                     |
+| `chats [--limit N]`                  | List self, 1:1 and group chats, default 20, maximum 200; use returned exact IDs.                                                 |
 | `read <chat-id                       | self> [--last N]`                                                                                                                | Recent history, oldest first; default 20, maximum 200. |
-| `search <query>`                     | Returns `search_unavailable`; upstream requires an AAD refresh token.                                                            |
 | `setup claude [--scope user          | project] [--write]`                                                                                                              | Preview or apply the maintained skill and permissions. |
 
-Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Chat display names, unread filtering, UI drafts and message writes are not supported by this migration.
+Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Chat display names, team channels, unread filtering, search and message writes are not supported.
 
 ## Troubleshooting
 
@@ -36,7 +35,8 @@ Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","de
 | `credential_file_invalid`                            | The file is not a valid clerkhand-managed credential. Preserve it for local investigation; never print it to an agent. |
 | `authentication_failed`                              | Built-in refresh/retry was exhausted or verification failed; report the error.                                         |
 | `auth_response_invalid`, `auth_identity_unavailable` | The internal authentication shape changed; report safe field metadata, never raw responses.                            |
-| `messenger_error`, `messenger_schema`                | Report the safe error; do not loop authentication refreshes.                                                           |
-| `search_unavailable`, `write_disabled`               | Capability is unavailable in this version.                                                                             |
+| `chat_not_found`                                     | The ID is not a chat this account can read. Use an exact ID from `chats`.                                              |
+| `teams_error`, `teams_schema`                        | Report the safe error (HTTP status only); do not loop authentication refreshes.                                        |
+| `write_disabled`                                     | Writes are unavailable in this version.                                                                                |
 
-See [security](security.md), [migration validation](agent-messenger-validation.md) and the [original UI archive](teams-ui-archive.md).
+See [security](security.md) and the [original UI archive](teams-ui-archive.md).

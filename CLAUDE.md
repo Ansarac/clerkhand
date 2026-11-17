@@ -9,7 +9,7 @@ Occam's razor: the simplest thing that works. No speculative abstractions, optio
 - Never call `agent-browser` directly against a logged-in profile; go through the `clerkhand-*` CLIs.
 - Never commit browser profiles, snapshots, logs or real chat content. Test fixtures are synthetic.
 - Only `clerkhand-teams auth refresh` may capture the user's normal Teams Skype credential from its dedicated browser profile. Never print, manually copy or pass credentials on a command line.
-- Teams data operations go through the pinned agent-messenger CLI, invoked by clerkhand's read-only command allowlist. Never run agent-messenger, its aliases, or agent-browser directly against authenticated state.
+- Teams data operations go through clerkhand's own GET-only client for the Teams chat service. Never call Teams APIs with the managed credential from ad-hoc scripts, and never run agent-browser directly against authenticated state.
 - Do not work around IT controls (conditional access, admin consent). If normal sign-in is blocked, report the failure.
 
 ## Commands

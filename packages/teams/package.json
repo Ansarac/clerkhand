@@ -1,7 +1,7 @@
 {
   "name": "@clerkhand/teams",
   "version": "0.0.0",
-  "description": "Teams browser authentication and bounded, read-only agent-messenger workflows for AI agents.",
+  "description": "Teams browser authentication and bounded, read-only chat workflows for AI agents.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -15,8 +15,7 @@
     "node": ">=26"
   },
   "dependencies": {
-    "@clerkhand/core": "workspace:*",
-    "agent-messenger": "2.43.0"
+    "@clerkhand/core": "workspace:*"
   },
   "devDependencies": {
     "vitest": "catalog:"

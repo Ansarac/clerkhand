@@ -1,10 +1,10 @@
-import { lstatSync, mkdtempSync, rmSync } from "node:fs";
+import { lstatSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { setTimeout } from "node:timers/promises";
 import { ClerkhandError, type Driver } from "@clerkhand/core";
+import { discover, type Fetch } from "./api.js";
 import { invalidateSkypeCache } from "./auth-cache.js";
-import type { Messenger } from "./messenger.js";
 import { runProcess } from "./process.js";
 import {
   type AuthPaths,
@@ -23,6 +23,7 @@ const TEAMS_HOSTS = new Set(["teams.microsoft.com", "teams.cloud.microsoft"]);
 const POLL_MS = 1000;
 const HTTP_OK = 200;
 const BEARER = /^Bearer\s+(?<token>.+)$/iu;
+const CAPABILITIES = { chats: true, history: true, search: false, writes: false };
 
 export interface AuthOptions {
   headed: boolean;
@@ -30,7 +31,7 @@ export interface AuthOptions {
 }
 export interface AuthDependencies {
   driver: (headed: boolean) => Driver;
-  messenger: Messenger;
+  fetch: Fetch;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
   profileBusy: (profileDir: string) => Promise<boolean>;
@@ -115,7 +116,7 @@ export function authStatus(credential: Credential | undefined, now: number) {
     verified: false,
     expiresAt: credential?.expiresAt ?? null,
     refreshNeeded: !credential || Date.parse(credential.expiresAt) <= now + REFRESH_BUFFER_MS,
-    capabilities: { chats: true, history: true, search: false, writes: false },
+    capabilities: CAPABILITIES,
   };
 }
 
@@ -133,7 +134,6 @@ export async function refreshCredential(
     );
   }
   await protectDirectory(paths.profileDir);
-  await protectDirectory(paths.configDir);
   const driver = deps.driver(options.headed);
   let owned = false;
   try {
@@ -159,7 +159,7 @@ export async function refreshCredential(
         "The browser is signed into another account. The managed credential was kept; use a separate CLERKHAND_HOME for that account.",
       );
     }
-    return await validateAndSave(paths, credential, deps.messenger);
+    return await validateAndSave(paths, credential, deps.fetch);
   } catch (error) {
     if (error instanceof ClerkhandError && !error.code.startsWith("browser_")) {
       throw error;
@@ -214,28 +214,17 @@ async function captureCredential(
   );
 }
 
-async function validateAndSave(paths: AuthPaths, credential: Credential, messenger: Messenger) {
-  const staging = mkdtempSync(join(paths.root, "verify-"));
-  try {
-    await protectDirectory(staging);
-    saveCredential(join(staging, "teams-credentials.json"), credential);
-    const identity = record(await messenger({ kind: "whoami" }, staging));
-    if (typeof identity["displayName"] !== "string" || identity["id"] !== "ME") {
-      throw new ClerkhandError(
-        "auth_validation_failed",
-        "agent-messenger could not verify the new credential.",
-      );
-    }
-    saveCredential(paths.credentialsPath, { ...credential, userName: identity["displayName"] });
-    return {
-      authenticated: true,
-      verified: true,
-      expiresAt: credential.expiresAt,
-      capabilities: { chats: true, history: true, search: false, writes: false },
-    };
-  } finally {
-    rmSync(staging, { recursive: true, force: true });
-  }
+/** The new credential must work against Teams before it replaces the previous one. */
+async function validateAndSave(paths: AuthPaths, credential: Credential, fetchImpl: Fetch) {
+  const { messageApi, displayName } = await discover(fetchImpl, credential.token);
+  saveCredential(paths.credentialsPath, { ...credential, userName: displayName, messageApi });
+  rmSync(paths.legacyDir, { recursive: true, force: true });
+  return {
+    authenticated: true,
+    verified: true,
+    expiresAt: credential.expiresAt,
+    capabilities: CAPABILITIES,
+  };
 }
 
 /** Windows Chromium does not expose a portable SingletonLock: inspect process arguments privately. */

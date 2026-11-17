@@ -10,7 +10,6 @@ export const ALLOWED_COMMANDS = [
   "whoami",
   "chats",
   "read",
-  "search",
 ] as const;
 export const DISABLED_COMMANDS = ["draft", "send", "edit", "delete", "undo-delete"] as const;
 
@@ -20,15 +19,11 @@ export const PERMISSIONS: PermissionRules = {
   ask: [],
   deny: [
     ...DISABLED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
-    ...["agent-browser", "agent-messenger", "agent-teams", "amsg"].flatMap((bin) => [
-      `Bash(${bin} *)`,
-      `Bash(npx ${bin} *)`,
-      `Bash(pnpm exec ${bin} *)`,
-      `Bash(pnpm dlx ${bin} *)`,
-      `Bash(npm exec ${bin} *)`,
-      `Bash(bunx ${bin} *)`,
-      `Bash(node *${bin}*)`,
-    ]),
+    // The browser driver can reach the authenticated profile; only clerkhand may run it.
+    ...["", "npx ", "pnpm exec ", "pnpm dlx ", "npm exec ", "bunx "].map(
+      (runner) => `Bash(${runner}agent-browser *)`,
+    ),
+    "Bash(node *agent-browser*)",
   ],
 };
 export function skillPath(): string {

@@ -24,7 +24,7 @@ export const setup: Command = (args, ctx) => {
       skillName: SKILL_NAME,
       skillContent: readFileSync(skillPath(), "utf8"),
       write: values.write ?? false,
-      retiredRules: DISABLED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
+      retiredRules: [...DISABLED_COMMANDS, "search"].map((command) => `Bash(${BIN} ${command} *)`),
     }),
   );
 };

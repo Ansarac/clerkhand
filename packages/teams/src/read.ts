@@ -1,101 +1,170 @@
 import { ClerkhandError } from "@clerkhand/core";
+import type { Session } from "./api.js";
 import { refreshCredential } from "./auth.js";
 import type { Context } from "./context.js";
-import type { ReadOperation } from "./messenger.js";
 import { loadCredential, needsRefresh, record, withLock } from "./storage.js";
 
 const MAX_TEXT = 4000;
 const MAX_FIELD = 512;
+const REFRESH = { headed: false, waitSeconds: 30 };
 
-/** One initial refresh OR one auth-error refresh; never loop across refreshes. */
-export function readOperation(operation: ReadOperation, ctx: Context): Promise<unknown> {
-  return withReadSession(ctx, (run) => run(operation));
-}
-
+/**
+ * Runs read-only `action` with a valid session. One initial refresh OR one refresh after an
+ * authentication rejection; the action is re-run at most once and never loops.
+ */
 export function withReadSession<T>(
   ctx: Context,
-  action: (run: (operation: ReadOperation) => Promise<unknown>) => Promise<T>,
+  action: (session: Session) => Promise<T>,
 ): Promise<T> {
   return withLock(ctx.paths, async () => {
     let refreshed = false;
     if (needsRefresh(loadCredential(ctx.paths.credentialsPath), ctx.now())) {
-      await refreshCredential(ctx.paths, { headed: false, waitSeconds: 30 }, ctx);
+      await refreshCredential(ctx.paths, REFRESH, ctx);
       refreshed = true;
     }
-    return action(async (operation) => {
-      try {
-        return await ctx.messenger(operation, ctx.paths.configDir);
-      } catch (error) {
-        if (
-          !(error instanceof ClerkhandError) ||
-          error.code !== "authentication_failed" ||
-          refreshed
-        ) {
-          throw error;
-        }
-        await refreshCredential(ctx.paths, { headed: false, waitSeconds: 30 }, ctx);
-        refreshed = true;
-        return ctx.messenger(operation, ctx.paths.configDir);
+    try {
+      return await action(session(ctx));
+    } catch (error) {
+      if (
+        !(error instanceof ClerkhandError) ||
+        error.code !== "authentication_failed" ||
+        refreshed
+      ) {
+        throw error;
       }
-    });
+      await refreshCredential(ctx.paths, REFRESH, ctx);
+      return action(session(ctx));
+    }
   });
+}
+
+function session(ctx: Context): Session {
+  const credential = loadCredential(ctx.paths.credentialsPath);
+  if (!credential) {
+    throw new ClerkhandError("authentication_failed", "No managed credential after refresh.");
+  }
+  return { token: credential.token, messageApi: credential.messageApi };
 }
 
 function text(value: unknown, max = MAX_FIELD): string {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
-export function compactChats(value: unknown, limit: number) {
-  if (!Array.isArray(value)) {
-    throw new ClerkhandError(
-      "messenger_schema",
-      "agent-messenger returned an unexpected chat list.",
-    );
+
+/** Self chat ("48:notes"), 1:1 and group chats; team channels and other thread types are skipped. */
+export function chatKind(id: string, properties: Record<string, unknown>): string | undefined {
+  if (properties["groupId"]) {
+    return undefined;
   }
-  const chats = value.slice(0, limit).map((item: unknown) => {
-    const chat = record(item);
-    if (
-      typeof chat["id"] !== "string" ||
-      !["oneOnOne", "group", "self"].includes(String(chat["type"]))
-    ) {
-      throw new ClerkhandError("messenger_schema", "agent-messenger returned an invalid chat.");
-    }
-    return {
-      id: text(chat["id"]),
-      kind: text(chat["type"]),
-      name: text(chat["topic"]),
-      lastMessage: text(chat["last_message"], MAX_TEXT),
-      lastMessageAt: text(chat["last_message_at"]),
-    };
-  });
-  return { chats, truncated: value.length > limit };
+  if (id === "48:notes" || properties["threadType"] === "streamofnotes") {
+    return "self";
+  }
+  if (properties["threadType"] && properties["threadType"] !== "chat") {
+    return undefined;
+  }
+  if (properties["productThreadType"]) {
+    return properties["productThreadType"] === "OneToOneChat" ? "oneOnOne" : "group";
+  }
+  return id.endsWith("@unq.gbl.spaces") ? "oneOnOne" : "group";
 }
-export function compactMessages(value: unknown, limit: number) {
-  if (!Array.isArray(value)) {
-    throw new ClerkhandError(
-      "messenger_schema",
-      "agent-messenger returned unexpected message history.",
-    );
-  }
-  const messages = value
+
+export function compactChats(conversations: unknown[], limit: number) {
+  const chats = conversations.flatMap((item) => {
+    const conversation = record(item);
+    const id = conversation["id"];
+    if (typeof id !== "string") {
+      throw new ClerkhandError("teams_schema", "Teams returned an invalid chat.");
+    }
+    const properties = record(conversation["threadProperties"]);
+    const kind = chatKind(id, properties);
+    if (!kind) {
+      return [];
+    }
+    const last = record(conversation["lastMessage"]);
+    return [
+      {
+        id: text(id),
+        kind,
+        name: text(properties["topic"]),
+        lastMessage: htmlToText(text(last["content"], MAX_TEXT)),
+        lastMessageAt: text(last["composetime"] ?? last["originalarrivaltime"]),
+      },
+    ];
+  });
+  return { chats: chats.slice(0, limit), truncated: chats.length > limit };
+}
+
+/** `fetched` is newest first, as Teams returns it; output is oldest first. Fetch `limit + 1`. */
+export function compactMessages(fetched: unknown[], limit: number) {
+  const messages = fetched
     .slice(0, limit)
-    .map((item: unknown) => {
+    .map((item) => {
       const message = record(item);
-      if (typeof message["id"] !== "string" || typeof message["content"] !== "string") {
-        throw new ClerkhandError(
-          "messenger_schema",
-          "agent-messenger returned an invalid message.",
-        );
+      if (typeof message["id"] !== "string") {
+        throw new ClerkhandError("teams_schema", "Teams returned an invalid message.");
       }
+      const properties = record(message["properties"]);
+      const raw = text(message["content"], Number.POSITIVE_INFINITY);
+      const content = message["messagetype"] === "Text" ? raw : htmlToText(raw);
       return {
         id: text(message["id"]),
-        author: text(message["author"]),
-        time: text(message["timestamp"]),
-        text: text(message["content"], MAX_TEXT),
-        edited: Boolean(message["edited_at"]),
-        deleted: Boolean(message["deleted_at"]),
-        textTruncated: message["content"].length > MAX_TEXT,
+        author: text(message["imdisplayname"]),
+        time: text(message["composetime"] ?? message["originalarrivaltime"]),
+        text: content.slice(0, MAX_TEXT),
+        edited: Boolean(properties["edittime"]),
+        deleted: Boolean(properties["deletetime"]),
+        textTruncated: content.length > MAX_TEXT,
       };
     })
     .sort((a, b) => a.time.localeCompare(b.time));
-  return { messages, truncated: value.length > limit };
+  return { messages, truncated: fetched.length > limit };
+}
+
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+const EMOJI = /<img\b[^>]*itemtype="http:\/\/schema\.skype\.com\/Emoji"[^>]*>/giu;
+const ALT = /\balt="(?<alt>[^"]*)"/u;
+const LINK = /<a\b[^>]*\bhref="(?<href>[^"]*)"[^>]*>(?<label>[\s\S]*?)<\/a>/giu;
+const BLOCK = /<\/?(?:p|div|li|tr|blockquote|pre|h[1-6]|ul|ol|table)\b[^>]*>/giu;
+const TAG = /<[^>]*>/gu;
+const MAX_CODE_POINT = 0x10_ff_ff;
+const HEX = 16;
+
+/** Teams rich text to plain text. Links keep their target; other markup and images are dropped. */
+export function htmlToText(html: string): string {
+  return decode(
+    html
+      .replace(/\s*[\r\n]+\s*/gu, " ")
+      .replace(EMOJI, (tag) => ALT.exec(tag)?.groups?.["alt"] ?? "")
+      .replace(LINK, (...match) => {
+        const { href = "", label = "" } = match.at(-1) as Record<string, string>;
+        const plain = label.replace(TAG, "");
+        return !plain || plain === href ? href : `${plain} (${href})`;
+      })
+      .replace(/<br\s*\/?>/giu, "\n")
+      .replace(BLOCK, "\n")
+      .replace(TAG, ""),
+  )
+    .replace(/[ \t]+/gu, " ")
+    .replace(/ *\n */gu, "\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
+}
+
+function decode(value: string): string {
+  return value.replace(/&(?<code>#x[\da-f]+|#\d+|[a-z]+);/giu, (entity, code: string) => {
+    if (code.startsWith("#")) {
+      const hex = code[1]?.toLowerCase() === "x";
+      const point = hex ? Number.parseInt(code.slice("#x".length), HEX) : Number(code.slice(1));
+      return Number.isInteger(point) && point <= MAX_CODE_POINT
+        ? String.fromCodePoint(point)
+        : entity;
+    }
+    return ENTITIES[code.toLowerCase()] ?? entity;
+  });
 }
