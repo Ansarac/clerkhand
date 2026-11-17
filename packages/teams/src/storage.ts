@@ -22,14 +22,16 @@ const SESSION_HASH_LENGTH = 12;
 const JWT_PARTS = 3;
 const PRIVATE_DIRECTORY = 0o700;
 const PRIVATE_FILE = 0o600;
+/** Teams chat service ("msg API"), one per region. The token is only ever sent to these hosts. */
+const MESSAGE_API = /^https:\/\/(?:amer|emea|apac)\.ng\.msg\.teams\.microsoft\.com\/v1$/u;
 
 export function authPaths() {
   const paths = toolPaths("teams-auth");
-  const configDir = join(paths.root, "messenger");
   return {
     ...paths,
-    configDir,
-    credentialsPath: join(configDir, "teams-credentials.json"),
+    credentialsPath: join(paths.root, "credentials.json"),
+    /** Written by the agent-messenger era; removed after the next successful refresh. */
+    legacyDir: join(paths.root, "messenger"),
     lockPath: join(paths.root, "operation.lock"),
     session: `clerkhand-teams-auth-${createHash("sha256").update(paths.root).digest("hex").slice(0, SESSION_HASH_LENGTH)}`,
   };
@@ -40,9 +42,16 @@ export interface Credential {
   expiresAt: string;
   userId: string;
   tenantId: string;
-  userName?: string;
+}
+/** A credential verified against Teams, with the chat service region it belongs to. */
+export interface StoredCredential extends Credential {
+  userName: string;
+  messageApi: string;
 }
 
+export function isMessageApi(value: unknown): value is string {
+  return typeof value === "string" && MESSAGE_API.test(value);
+}
 export function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -79,24 +88,8 @@ export function skypeCredential(token: string, tenantId: string, now: number): C
   }
   return { token, expiresAt: new Date(exp * SECONDS_TO_MS).toISOString(), userId, tenantId };
 }
-export function credentialConfig(credential: Credential): unknown {
-  return {
-    clerkhand: { schema: 1, userId: credential.userId, tenantId: credential.tenantId },
-    ["current_account"]: "work",
-    accounts: {
-      work: {
-        token: credential.token,
-        ["token_expires_at"]: credential.expiresAt,
-        ["account_type"]: "work",
-        ["auth_method"]: "browser",
-        ["user_name"]: credential.userName,
-        ["current_team"]: null,
-        teams: {},
-      },
-    },
-  };
-}
-export function loadCredential(path: string): Credential | undefined {
+const SCHEMA = 2;
+export function loadCredential(path: string): StoredCredential | undefined {
   if (!existsSync(path)) {
     return undefined;
   }
@@ -104,34 +97,28 @@ export function loadCredential(path: string): Credential | undefined {
     if (lstatSync(path).isSymbolicLink()) {
       throw new Error("link");
     }
-    const config = record(JSON.parse(readFileSync(path, "utf8")));
-    const owner = record(config["clerkhand"]);
-    const account = record(record(config["accounts"])["work"]);
+    const file = record(JSON.parse(readFileSync(path, "utf8")));
+    const { token, expiresAt, userId, tenantId, userName, messageApi } = file;
     if (
-      owner["schema"] !== 1 ||
-      config["current_account"] !== "work" ||
-      typeof owner["userId"] !== "string" ||
-      typeof owner["tenantId"] !== "string" ||
-      typeof account["token"] !== "string" ||
-      typeof account["token_expires_at"] !== "string"
+      file["schema"] !== SCHEMA ||
+      typeof token !== "string" ||
+      typeof expiresAt !== "string" ||
+      typeof userId !== "string" ||
+      typeof tenantId !== "string" ||
+      typeof userName !== "string" ||
+      !isMessageApi(messageApi)
     ) {
       throw new Error("format");
     }
-    const claims = jwtClaims(account["token"]);
+    const claims = jwtClaims(token);
     if (
-      claims["skypeid"] !== `orgid:${owner["userId"]}` ||
+      claims["skypeid"] !== `orgid:${userId}` ||
       typeof claims["exp"] !== "number" ||
-      Date.parse(account["token_expires_at"]) !== claims["exp"] * SECONDS_TO_MS
+      Date.parse(expiresAt) !== claims["exp"] * SECONDS_TO_MS
     ) {
       throw new Error("identity");
     }
-    return {
-      token: account["token"],
-      expiresAt: account["token_expires_at"],
-      userId: owner["userId"],
-      tenantId: owner["tenantId"],
-      ...(typeof account["user_name"] === "string" ? { userName: account["user_name"] } : {}),
-    };
+    return { token, expiresAt, userId, tenantId, userName, messageApi };
   } catch {
     // biome-ignore lint/style/useErrorCause: parser errors may embed the secret file contents.
     throw new ClerkhandError(
@@ -143,9 +130,12 @@ export function loadCredential(path: string): Credential | undefined {
 export function needsRefresh(credential: Credential | undefined, now: number): boolean {
   return !credential || Date.parse(credential.expiresAt) <= now + REFRESH_BUFFER_MS;
 }
-/** Secure directories before writing secrets, including Windows where mode bits are ignored. */
+/**
+ * Secure directories before writing secrets, including Windows where mode bits are ignored.
+ * The Windows ACL is set when the directory is created, not on every read.
+ */
 export async function protectDirectory(path: string): Promise<void> {
-  mkdirSync(path, { recursive: true, mode: PRIVATE_DIRECTORY });
+  const created = mkdirSync(path, { recursive: true, mode: PRIVATE_DIRECTORY });
   if (lstatSync(path).isSymbolicLink()) {
     throw new ClerkhandError(
       "unsafe_data_path",
@@ -154,6 +144,9 @@ export async function protectDirectory(path: string): Promise<void> {
   }
   if (process.platform !== "win32") {
     chmodSync(path, PRIVATE_DIRECTORY);
+    return;
+  }
+  if (created === undefined) {
     return;
   }
   const acl = await runProcess(
@@ -199,10 +192,10 @@ export async function withLock<T>(paths: AuthPaths, action: () => Promise<T>): P
   }
 }
 /** Atomic same-directory rename; failed writes leave the previous credential untouched. */
-export function saveCredential(path: string, credential: Credential): void {
+export function saveCredential(path: string, credential: StoredCredential): void {
   const temporary = `${path}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, JSON.stringify(credentialConfig(credential)), {
+    writeFileSync(temporary, JSON.stringify({ schema: SCHEMA, ...credential }), {
       flag: "wx",
       mode: PRIVATE_FILE,
     });

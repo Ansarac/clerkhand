@@ -4,7 +4,6 @@ import process from "node:process";
 import { createDriver, findEdge } from "@clerkhand/core";
 import { profileBusy, sleep } from "./auth.js";
 import { main } from "./main.js";
-import { createMessenger } from "./messenger.js";
 import { authPaths } from "./storage.js";
 
 const paths = authPaths();
@@ -18,7 +17,7 @@ process.exitCode = await main(
     now: Date.now,
     sleep,
     profileBusy,
-    messenger: (operation, configDir) => createMessenger()(operation, configDir),
+    fetch,
     driver: (headed) =>
       createDriver({
         ...paths,

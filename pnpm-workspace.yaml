@@ -13,18 +13,10 @@ allowBuilds:
   # Its postinstall would install git hooks implicitly; run
   # `pnpm exec lefthook install` instead (docs/development.md).
   lefthook: false
-  # Optional integrations and native stores are not needed by the Teams CLI.
-  "@whiskeysockets/baileys": false
-  classic-level: false
-  koffi: false
-  protobufjs: false
 
 # Agent skills from dependencies are opt-in.
 permissions:
   # agent-browser's skills teach agents to drive the browser directly, which
   # bypasses every clerkhand safety check (docs/security.md).
   agent-browser:
-    skills: false
-  # Its skills expose direct writes and a different authentication workflow.
-  agent-messenger:
     skills: false

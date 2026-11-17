@@ -6,8 +6,7 @@
       "Bash(clerkhand-teams read *)",
       "Bash(clerkhand-teams auth status *)",
       "Bash(clerkhand-teams auth refresh *)",
-      "Bash(clerkhand-teams whoami *)",
-      "Bash(clerkhand-teams search *)"
+      "Bash(clerkhand-teams whoami *)"
     ],
     "ask": [],
     "deny": [
@@ -22,28 +21,7 @@
       "Bash(clerkhand-teams undo-delete *)",
       "Bash(npm exec agent-browser *)",
       "Bash(bunx agent-browser *)",
-      "Bash(node *agent-browser*)",
-      "Bash(agent-messenger *)",
-      "Bash(npx agent-messenger *)",
-      "Bash(pnpm exec agent-messenger *)",
-      "Bash(pnpm dlx agent-messenger *)",
-      "Bash(npm exec agent-messenger *)",
-      "Bash(bunx agent-messenger *)",
-      "Bash(node *agent-messenger*)",
-      "Bash(agent-teams *)",
-      "Bash(npx agent-teams *)",
-      "Bash(pnpm exec agent-teams *)",
-      "Bash(pnpm dlx agent-teams *)",
-      "Bash(npm exec agent-teams *)",
-      "Bash(bunx agent-teams *)",
-      "Bash(node *agent-teams*)",
-      "Bash(amsg *)",
-      "Bash(npx amsg *)",
-      "Bash(pnpm exec amsg *)",
-      "Bash(pnpm dlx amsg *)",
-      "Bash(npm exec amsg *)",
-      "Bash(bunx amsg *)",
-      "Bash(node *amsg*)"
+      "Bash(node *agent-browser*)"
     ]
   }
 }

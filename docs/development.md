@@ -32,9 +32,9 @@ The repo's `.claude/settings.json` allows authentication and reads and denies di
 
 ## Authentication and upstream integration
 
-The Teams package owns the dedicated `teams-auth` profile and managed credential file. The only data integration is the pinned public agent-messenger CLI, resolved from package metadata and spawned without a shell. Do not import private upstream entrypoints or restore the archived UI backend. Tests use synthetic JWT claims and messages, hand-written browser/CLI fakes and temporary data directories.
+The Teams package owns the dedicated `teams-auth` profile and managed credential file. Data access is the GET-only client in `packages/teams/src/api.ts`; keep it free of write methods until a confirmation design exists, and do not restore the archived UI backend. Tests use synthetic JWT claims and messages, hand-written browser and `fetch` fakes and temporary data directories.
 
-An authenticated response must match the request's user identity, and the newly staged credential must pass `whoami` before atomic replacement. Authentication errors, file ownership, permissions, cleanup and output suppression are observable test invariants. On Windows, validate ACL behavior as well as Unix mode checks in CI.
+An authenticated response must match the request's user identity, and the new credential must pass a Teams identity request before atomic replacement. Authentication errors, file ownership, permissions, cleanup and output suppression are observable test invariants. On Windows, validate ACL behavior as well as Unix mode checks in CI.
 
 ## Conventions
 

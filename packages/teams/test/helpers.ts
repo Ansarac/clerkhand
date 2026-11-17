@@ -1,13 +1,13 @@
 import { mkdirSync } from "node:fs";
 import type { Driver } from "@clerkhand/core";
+import type { Fetch } from "../src/api.js";
 import type { Context } from "../src/context.js";
-import type { ReadOperation } from "../src/messenger.js";
 import { authPaths, saveCredential, skypeCredential } from "../src/storage.js";
 
 export const NOW = Date.UTC(2030, 0, 1);
 export const USER_ID = "11111111-1111-1111-1111-111111111111";
 export const TENANT_ID = "22222222-2222-2222-2222-222222222222";
-export const SELF_ID = "19:synthetic-self@thread.v2";
+export const MESSAGE_API = "https://emea.ng.msg.teams.microsoft.com/v1";
 export function jwt(claims: Record<string, unknown>): string {
   return `${Buffer.from(JSON.stringify({ alg: "synthetic" })).toString("base64url")}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.synthetic`;
 }
@@ -28,14 +28,61 @@ export function detail(
     responseBody: JSON.stringify({ skypeToken: { skypetoken: skype } }),
   };
 }
+
+export interface Request {
+  url: string;
+  init: RequestInit | undefined;
+}
+/** Synthetic Teams chat service: answers only in the EMEA region, others return 403. */
+export function teamsService(routes: Record<string, (url: URL) => unknown> = {}): {
+  fetch: Fetch;
+  requests: Request[];
+} {
+  const requests: Request[] = [];
+  const defaults: Record<string, (url: URL) => unknown> = {
+    "/v1/users/ME/properties": () => ({ userDetails: JSON.stringify({ name: "Synthetic User" }) }),
+    "/v1/users/ME/conversations": () => ({
+      conversations: [{ id: "48:notes", threadProperties: {}, lastMessage: {} }],
+    }),
+    "/v1/users/ME/conversations/48%3Anotes/messages": () => ({
+      messages: [
+        {
+          id: "1",
+          messagetype: "Text",
+          content: "Synthetic message",
+          imdisplayname: "Synthetic User",
+          composetime: "2030-01-01T00:00:00Z",
+        },
+      ],
+      ["_metadata"]: {},
+    }),
+  };
+  const fake = (input: string | URL | globalThis.Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    requests.push({ url: url.href, init });
+    if (!url.href.startsWith(MESSAGE_API)) {
+      return Promise.resolve(new Response(null, { status: 403 }));
+    }
+    const route = routes[url.pathname] ?? defaults[url.pathname];
+    if (!route) {
+      return Promise.resolve(new Response(null, { status: 404 }));
+    }
+    const body = route(url);
+    return Promise.resolve(
+      body instanceof Response ? body : new Response(JSON.stringify(body), { status: 200 }),
+    );
+  };
+  return { fetch: fake as Fetch, requests };
+}
+
 export function context(
   options: { credential?: boolean; detail?: unknown; noResponse?: boolean } = {},
 ) {
   let now = NOW;
   const paths = authPaths();
   const calls: string[][] = [];
-  const operations: { operation: ReadOperation; configDir: string }[] = [];
   const response = options.detail ?? detail();
+  const service = teamsService();
   const driver: Driver = {
     run: (args) => {
       calls.push([...args]);
@@ -63,27 +110,15 @@ export function context(
     },
     profileBusy: () => Promise.resolve(false),
     driver: () => driver,
-    messenger: (operation, configDir) => {
-      operations.push({ operation, configDir });
-      if (operation.kind === "whoami") {
-        return Promise.resolve({ id: "ME", displayName: "Synthetic User" });
-      }
-      if (operation.kind === "chats") {
-        return Promise.resolve([{ id: SELF_ID, type: "self", topic: "Synthetic self" }]);
-      }
-      return Promise.resolve([
-        {
-          id: "synthetic-message",
-          content: "Synthetic message",
-          author: "Synthetic User",
-          timestamp: "2030-01-01T00:00:00Z",
-        },
-      ]);
-    },
+    fetch: service.fetch,
   };
   if (options.credential) {
-    mkdirSync(paths.configDir, { recursive: true });
-    saveCredential(paths.credentialsPath, skypeCredential(token(), TENANT_ID, NOW));
+    mkdirSync(paths.root, { recursive: true });
+    saveCredential(paths.credentialsPath, {
+      ...skypeCredential(token(), TENANT_ID, NOW),
+      userName: "Synthetic User",
+      messageApi: MESSAGE_API,
+    });
   }
-  return { ctx, calls, operations, driver };
+  return { ctx, calls, requests: service.requests, driver };
 }

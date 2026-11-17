@@ -11,6 +11,6 @@ For this source checkout, use `node packages/teams/dist/cli.js setup claude --sc
 
 The setup command preserves unrelated settings. It removes the exact obsolete clerkhand write allow/ask rules, denies those writes, and installs the read-only Teams skill. Re-running it reports no changes. Project settings tracked here follow the same rules; the installed skill is local and git-ignored.
 
-Direct `agent-browser`, `agent-messenger`, `amsg` and `agent-teams` calls, including common runner forms, are denied because they bypass the wrapper. The tool invokes its pinned dependency subprocesses internally. Dependency-provided skills stay disabled.
+Direct `agent-browser` calls, including common runner forms, are denied because they bypass the wrapper. The tool runs its pinned browser driver internally. Dependency-provided skills stay disabled. Setup retires the old `search` allow rule; deny rules from earlier versions are left in place.
 
 Prefix rules are not a sandbox for arbitrary shell/code access. See [security limits](security.md#agent-permissions). Neither setup nor permission bypass mode verifies approval dialogs; writes remain unavailable.

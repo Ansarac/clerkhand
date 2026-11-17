@@ -12,8 +12,8 @@ describe("migration permissions", () => {
       expect(settings.permissions[kind]).toEqual(expect.arrayContaining([...PERMISSIONS[kind]]));
     }
   });
-  it("pins the upstream runtime dependency", () => {
+  it("has no runtime dependency beyond core", () => {
     const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-    expect(pkg.dependencies["agent-messenger"]).toBe("2.43.0");
+    expect(Object.keys(pkg.dependencies)).toEqual(["@clerkhand/core"]);
   });
 });

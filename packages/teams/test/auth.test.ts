@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { ClerkhandError } from "@clerkhand/core";
 import { describe, expect, it } from "vitest";
@@ -12,9 +12,23 @@ import {
   saveCredential,
   withLock,
 } from "../src/storage.js";
-import { context, detail, jwt, NOW, TENANT_ID, token } from "./helpers.js";
+import {
+  context,
+  detail,
+  jwt,
+  MESSAGE_API,
+  NOW,
+  TENANT_ID,
+  teamsService,
+  token,
+} from "./helpers.js";
 
 const options = { headed: false, waitSeconds: 2 };
+const stored = () => ({
+  ...credentialFromDetail(detail(), NOW),
+  userName: "Synthetic User",
+  messageApi: MESSAGE_API,
+});
 describe("credential validation", () => {
   it("checks expiry and the exact browser request's identity for flat and nested responses", () => {
     expect(credentialFromDetail(detail(), NOW).expiresAt).toBe("2030-01-01T01:00:00.000Z");
@@ -70,26 +84,29 @@ describe("authentication transaction", () => {
     ).rejects.toMatchObject({ code: "login_required" });
     expect(calls.filter((args) => args[0] === "reload")).toHaveLength(1);
   });
-  it("verifies from a private staging directory before replacing credentials, then removes staging", async () => {
-    const { ctx, operations, calls } = context();
+  it("verifies with Teams and records the region before replacing credentials", async () => {
+    const { ctx, calls } = context();
+    mkdirSync(ctx.paths.legacyDir, { recursive: true });
     await withLock(ctx.paths, () => refreshCredential(ctx.paths, options, ctx));
-    expect(operations[0]?.configDir).not.toBe(ctx.paths.configDir);
-    expect(loadCredential(ctx.paths.credentialsPath)?.userName).toBe("Synthetic User");
-    expect(readdirSync(ctx.paths.root).some((name) => name.startsWith("verify-"))).toBe(false);
+    expect(loadCredential(ctx.paths.credentialsPath)).toMatchObject({
+      userName: "Synthetic User",
+      messageApi: MESSAGE_API,
+    });
+    expect(existsSync(ctx.paths.legacyDir)).toBe(false);
     expect(calls.at(-1)).toEqual(["close"]);
     expect(existsSync(ctx.paths.lockPath)).toBe(false);
   });
   it("keeps the previous file byte-for-byte when verification fails", async () => {
     const { ctx, calls } = context({ credential: true });
     const before = readFileSync(ctx.paths.credentialsPath, "utf8");
-    ctx.messenger = () =>
-      Promise.reject(new ClerkhandError("authentication_failed", "Synthetic rejection"));
+    ctx.fetch = teamsService({
+      "/v1/users/ME/properties": () => new Response(null, { status: 401 }),
+    }).fetch;
     await expect(
       withLock(ctx.paths, () => refreshCredential(ctx.paths, options, ctx)),
     ).rejects.toMatchObject({ code: "authentication_failed" });
     expect(readFileSync(ctx.paths.credentialsPath, "utf8")).toBe(before);
     expect(calls.at(-1)).toEqual(["close"]);
-    expect(readdirSync(ctx.paths.root).some((name) => name.startsWith("verify-"))).toBe(false);
   });
   it("rejects an account or tenant switch without replacing credentials", async () => {
     const { ctx } = context({
@@ -152,8 +169,8 @@ describe("protected storage", () => {
     skip: process.platform !== "win32",
   }, async () => {
     const { ctx } = context();
-    await protectDirectory(ctx.paths.configDir);
-    saveCredential(ctx.paths.credentialsPath, credentialFromDetail(detail(), NOW));
+    await protectDirectory(ctx.paths.root);
+    saveCredential(ctx.paths.credentialsPath, stored());
     const result = await runProcess(
       "powershell.exe",
       [
@@ -173,11 +190,19 @@ describe("protected storage", () => {
     expect(() => loadCredential(ctx.paths.credentialsPath)).toThrow(
       expect.objectContaining({ code: "credential_file_invalid" }),
     );
+    // A tampered service URL would send the token elsewhere.
+    writeFileSync(
+      ctx.paths.credentialsPath,
+      JSON.stringify({ schema: 2, ...stored(), messageApi: "https://example.test/v1" }),
+    );
+    expect(() => loadCredential(ctx.paths.credentialsPath)).toThrow(
+      expect.objectContaining({ code: "credential_file_invalid" }),
+    );
   });
   it("cleans up a failed atomic replacement", async () => {
     const { ctx } = context();
-    await protectDirectory(ctx.paths.configDir);
-    expect(() => saveCredential(ctx.paths.configDir, credentialFromDetail(detail(), NOW))).toThrow(
+    await protectDirectory(ctx.paths.root);
+    expect(() => saveCredential(ctx.paths.root, stored())).toThrow(
       expect.objectContaining({ code: "credential_write_failed" }),
     );
     expect(readdirSync(ctx.paths.root).some((name) => name.endsWith(".tmp"))).toBe(false);
@@ -195,9 +220,9 @@ describe("protected storage", () => {
   });
   it("writes private Unix modes", { skip: process.platform === "win32" }, async () => {
     const { ctx } = context();
-    await protectDirectory(ctx.paths.configDir);
-    saveCredential(ctx.paths.credentialsPath, credentialFromDetail(detail(), NOW));
-    expect(statSync(ctx.paths.configDir).mode % 0o1000).toBe(0o700);
+    await protectDirectory(ctx.paths.root);
+    saveCredential(ctx.paths.credentialsPath, stored());
+    expect(statSync(ctx.paths.root).mode % 0o1000).toBe(0o700);
     expect(statSync(ctx.paths.credentialsPath).mode % 0o1000).toBe(0o600);
   });
 });

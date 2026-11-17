@@ -1,5 +1,7 @@
 # agent-messenger migration validation
 
+> Superseded on 2026-11-17: clerkhand no longer depends on agent-messenger and reads the Teams chat service with its own GET-only client (see [overview](overview.md)). Kept as history.
+
 Recorded on 2026-11-17. The implementation is on `feat/agent-messenger`, based on updated main (`68a1bca`). Authentication and read-only workflows are implemented and locally verified; natural-expiry and long-running reliability remain to be measured. Writes are disabled, and server search is unavailable with this credential flow.
 
 ## Archive and dependencies
