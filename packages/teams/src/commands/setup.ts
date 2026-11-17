@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { type ClaudeScope, setupClaude } from "@clerkhand/core";
 import { type Command, parse, usage } from "../context.js";
-import { PERMISSIONS, SKILL_NAME, skillPath } from "../permissions.js";
+import { BIN, DISABLED_COMMANDS, PERMISSIONS, SKILL_NAME, skillPath } from "../permissions.js";
 
 export const setup: Command = (args, ctx) => {
   const { values, positionals } = parse(args, {
@@ -24,6 +24,7 @@ export const setup: Command = (args, ctx) => {
       skillName: SKILL_NAME,
       skillContent: readFileSync(skillPath(), "utf8"),
       write: values.write ?? false,
+      retiredRules: DISABLED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
     }),
   );
 };

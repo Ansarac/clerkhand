@@ -3,7 +3,6 @@ packages:
 
 # Versions shared by several workspace packages; reference them with "catalog:".
 catalog:
-  happy-dom: 21.0.4
   vitest: 5.1.0
 
 # Dependency build scripts are opt-in.
@@ -14,10 +13,18 @@ allowBuilds:
   # Its postinstall would install git hooks implicitly; run
   # `pnpm exec lefthook install` instead (docs/development.md).
   lefthook: false
+  # Optional integrations and native stores are not needed by the Teams CLI.
+  "@whiskeysockets/baileys": false
+  classic-level: false
+  koffi: false
+  protobufjs: false
 
 # Agent skills from dependencies are opt-in.
 permissions:
   # agent-browser's skills teach agents to drive the browser directly, which
   # bypasses every clerkhand safety check (docs/security.md).
   agent-browser:
+    skills: false
+  # Its skills expose direct writes and a different authentication workflow.
+  agent-messenger:
     skills: false

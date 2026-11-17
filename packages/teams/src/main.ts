@@ -1,52 +1,59 @@
-import { failure, success } from "@clerkhand/core";
-import { chats } from "./commands/chats.js";
-import { draft } from "./commands/draft.js";
-import { login } from "./commands/login.js";
-import { read } from "./commands/read.js";
-import { send } from "./commands/send.js";
+import { ClerkhandError, failure, success } from "@clerkhand/core";
+import { auth } from "./commands/auth.js";
+import { chats, read, search, whoami } from "./commands/read.js";
 import { setup } from "./commands/setup.js";
-import { status } from "./commands/status.js";
 import { type Command, type Context, usage } from "./context.js";
 
 const USAGE = `Usage: clerkhand-teams <command> [options]
-
-Commands:
-  login                          Open a browser window to sign in to Teams
-  status                         Check that Teams is signed in and ready
-  chats [--unread] [--limit N]   List chats in the sidebar
-  read <chat> [--last N]         Read the last N messages (default 20); marks the chat as read
-  draft <chat> --text T          Replace the unsent draft of a chat (never sends)
-  draft show <chat>              Show the unsent draft
-  draft clear <chat>             Remove the unsent draft
-  send <chat> --confirm <hash>   Send the draft whose hash the user confirmed
+  auth status                    Local credential status (no network validation)
+  auth refresh [--headed] [--wait N]   Refresh and verify credentials (default wait 30s, max 300s)
+  status                         Alias for auth status
+  whoami                         Verify identity through agent-messenger
+  chats [--limit N]               List chats (default 20, max 200)
+  read <chat-id|self> [--last N]   Read recent messages (default 20, max 200)
+  search <query>                  Reports search capability restriction
   setup claude [--scope user|project] [--write]
-                                 Show (or with --write, apply) Claude Code permissions and skill
-
-Browser commands accept --headed to show the window. Output is JSON.`;
-
-export const COMMANDS: Record<string, Command> = { login, status, chats, read, draft, send, setup };
-
-export interface Io {
-  stdout: (text: string) => void;
-}
-
-/** Runs the CLI and returns the process exit code. */
-export async function main(argv: readonly string[], io: Io, ctx: Context): Promise<number> {
+Writes and arbitrary upstream commands are disabled. Output is JSON.`;
+const WRITES = new Set(["draft", "send", "edit", "delete", "undo-delete"]);
+export const COMMANDS: Record<string, Command> = {
+  auth,
+  status: (args, ctx) => auth(["status", ...args], ctx),
+  whoami,
+  chats,
+  read,
+  search,
+  setup,
+};
+export async function main(
+  argv: readonly string[],
+  io: { stdout: (text: string) => void },
+  ctx: Context,
+): Promise<number> {
   const [name, ...args] = argv;
   if (name === undefined || name === "--help" || name === "-h") {
     io.stdout(USAGE);
     return 0;
   }
   try {
-    const command = COMMANDS[name];
+    if (WRITES.has(name)) {
+      throw new ClerkhandError(
+        "write_disabled",
+        "Message writes are disabled on the authentication and read-only migration.",
+      );
+    }
+    const command = Object.hasOwn(COMMANDS, name) ? COMMANDS[name] : undefined;
     if (!command) {
       throw usage(`Unknown command: ${name}. Run clerkhand-teams --help.`);
     }
     io.stdout(success(await command(args, ctx)));
     return 0;
   } catch (error) {
-    const { text, exitCode } = failure(error);
-    io.stdout(text);
-    return exitCode;
+    const safe =
+      error instanceof ClerkhandError
+        ? error
+        : new ClerkhandError("internal", "The operation failed; raw diagnostics were suppressed.");
+    const result = failure(safe);
+    io.stdout(result.text);
+    return result.exitCode;
   }
 }

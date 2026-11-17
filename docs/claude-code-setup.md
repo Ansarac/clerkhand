@@ -1,24 +1,16 @@
 # Claude Code setup
 
+Build or install `clerkhand-teams`, then preview and apply its maintained skill and permission rules:
+
 ```sh
-clerkhand-teams setup claude                    # show what would change
-clerkhand-teams setup claude --write            # apply to ~/.claude
-clerkhand-teams setup claude --scope project --write   # apply to ./.claude
+clerkhand-teams setup claude --scope project
+clerkhand-teams setup claude --scope project --write
 ```
 
-It never removes existing rules, and refuses to touch a `settings.json` that is not valid JSON.
+For this source checkout, use `node packages/teams/dist/cli.js setup claude --scope project --write`. Use `--scope user` to configure your user directory instead; this is the default scope.
 
-## Permission rules
+The setup command preserves unrelated settings. It removes the exact obsolete clerkhand write allow/ask rules, denies those writes, and installs the read-only Teams skill. Re-running it reports no changes. Project settings tracked here follow the same rules; the installed skill is local and git-ignored.
 
-Added to `permissions` in `settings.json`:
+Direct `agent-browser`, `agent-messenger`, `amsg` and `agent-teams` calls, including common runner forms, are denied because they bypass the wrapper. The tool invokes its pinned dependency subprocesses internally. Dependency-provided skills stay disabled.
 
-| List    | Rules                                                                                                                     |
-| ------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `allow` | `Bash(clerkhand-teams status *)`, `Bash(clerkhand-teams chats *)`, `Bash(clerkhand-teams read *)`                         |
-| `deny`  | `Bash(agent-browser *)`, `Bash(npx agent-browser *)`, `Bash(pnpm exec agent-browser *)`, `Bash(pnpm dlx agent-browser *)` |
-
-`login` and `setup` are not allowed automatically, so Claude Code asks before running them. Rules match command prefixes; see [security](security.md#limits) for what they do not catch.
-
-## Skill
-
-The `clerkhand-teams` tool skill is installed to `.claude/skills/clerkhand-teams/SKILL.md`. It covers the commands, the "what's new" workflow and the safety rules, and is updated with the tool. Run `setup claude --write` again after upgrading.
+Prefix rules are not a sandbox for arbitrary shell/code access. See [security limits](security.md#agent-permissions). Neither setup nor permission bypass mode verifies approval dialogs; writes remain unavailable.

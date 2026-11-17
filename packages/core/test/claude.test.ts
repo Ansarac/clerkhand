@@ -29,6 +29,37 @@ function writeSettings(value: unknown): void {
 }
 
 describe("setupClaude", () => {
+  it("retires exact old allow/ask rules while keeping unrelated settings and current denies", () => {
+    writeSettings({
+      model: "x",
+      permissions: {
+        allow: ["Bash(ls *)", "Bash(tool draft *)"],
+        ask: ["Bash(tool send *)"],
+        deny: ["Bash(tool send *)"],
+      },
+    });
+    const migrated = {
+      ...options,
+      rules: { ...options.rules, ask: [], deny: ["Bash(driver *)", "Bash(tool send *)"] },
+      retiredRules: ["Bash(tool draft *)", "Bash(tool send *)"],
+      write: true,
+    };
+    const report = setupClaude(migrated);
+    expect(report.removed).toEqual({
+      allow: ["Bash(tool draft *)"],
+      ask: ["Bash(tool send *)"],
+      deny: [],
+    });
+    expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toEqual({
+      model: "x",
+      permissions: {
+        allow: ["Bash(ls *)", "Bash(tool read *)"],
+        ask: [],
+        deny: ["Bash(tool send *)", "Bash(driver *)"],
+      },
+    });
+    expect(setupClaude(migrated).removed).toEqual({ allow: [], ask: [], deny: [] });
+  });
   it("reports every rule and the skill as new without touching disk by default", () => {
     const report = setupClaude(options);
     expect(report).toEqual({
