@@ -170,7 +170,7 @@ describe("bounded read workflows", () => {
   });
   it("rejects writes, removed commands and invalid input before any backend call", async () => {
     const { ctx, calls, requests } = context();
-    for (const command of ["send", "edit", "delete", "undo-delete", "draft"]) {
+    for (const command of ["edit", "delete", "undo-delete"]) {
       expect((await run([command], ctx)).body.error.code).toBe("write_disabled");
     }
     for (const argv of [

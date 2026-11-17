@@ -1,6 +1,6 @@
 ---
 name: clerkhand-teams
-description: Authenticate and read the user's Microsoft Teams chats through clerkhand-teams. Use for listing chats, reading a specified chat or summarizing recent messages. Message writes and server search are unavailable in this version.
+description: Authenticate and read the user's Microsoft Teams chats through clerkhand-teams. Use for listing chats, reading a specified chat, summarizing recent messages, or sending a message to the user's own self-chat. Sending to others, editing, deleting and server search are unavailable.
 ---
 
 # clerkhand-teams
@@ -31,6 +31,11 @@ Server search is not available: it needs a different token than the one this too
 
 ## Operation boundaries
 
-Sending, drafting, editing, deleting and restoring are disabled. Explain this when a user requests a write. Do not use other Teams tools, direct browser commands, or custom API scripts to perform it. The old UI implementation is in the archive branch, not an alternative backend for this skill.
+Only the user's own self-chat can receive messages, and only when the user explicitly asks to send in this conversation ("test it" is not a request to send):
+
+1. `clerkhand-teams draft self --text "<text>"` and show the user the exact text.
+2. After the user approves that text, `clerkhand-teams send self --text "<same text>" --confirm <hash>`.
+
+`draft_changed` means the text differs: draft again and ask again. `send_unconfirmed` means the outcome is unknown: read the self-chat before doing anything else, and never resend blindly. Sending to anyone else, editing, deleting and restoring are disabled; explain this when asked. Do not use other Teams tools, direct browser commands, or custom API scripts to perform them. The old UI implementation is in the archive branch, not an alternative backend for this skill.
 
 For `authentication_failed` after the built-in retry, `teams_error`, `teams_schema` or browser failures, report the safe error. Do not loop refreshes or retries. Never print credentials, raw network responses or secret-bearing diagnostics.

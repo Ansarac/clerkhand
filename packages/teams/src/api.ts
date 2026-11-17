@@ -17,7 +17,60 @@ export interface Session {
   messageApi: string;
 }
 
-/** GET only: this client has no write path. Errors never include response bodies. */
+export const SELF_CHAT_ID = "48:notes";
+const MAX_CLIENT_ID = 1e15;
+
+/**
+ * The only write: a plain-text message to the user's own self-chat. The target is fixed here,
+ * not passed in. Never retried; a timeout leaves the outcome unknown.
+ */
+export async function sendToSelf(fetchImpl: Fetch, session: Session, text: string) {
+  if (!isMessageApi(session.messageApi)) {
+    throw new ClerkhandError("teams_error", "Refused a request outside the Teams chat service.");
+  }
+  const clientMessageId = String(Math.floor(Math.random() * MAX_CLIENT_ID));
+  let response: Response;
+  try {
+    response = await fetchImpl(
+      `${session.messageApi}/users/ME/conversations/${encodeURIComponent(SELF_CHAT_ID)}/messages`,
+      {
+        method: "POST",
+        headers: { ["X-Skypetoken"]: session.token, ["content-type"]: "application/json" },
+        body: JSON.stringify({
+          content: text,
+          messagetype: "Text",
+          contenttype: "text",
+          clientmessageid: clientMessageId,
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      },
+    );
+  } catch {
+    // biome-ignore lint/style/useErrorCause: network errors can echo request headers.
+    throw new ClerkhandError(
+      "send_unconfirmed",
+      "The send request did not complete; the message may or may not exist. Read the self-chat before trying again.",
+    );
+  }
+  if (response.status === HTTP_UNAUTHORIZED) {
+    throw new ClerkhandError("authentication_failed", "Teams rejected the credential; not sent.");
+  }
+  if (!response.ok) {
+    throw new ClerkhandError("teams_error", `Teams returned HTTP ${response.status}; not sent.`, {
+      details: { status: response.status },
+    });
+  }
+  const body = record(await response.json().catch(() => undefined));
+  const arrival = body["OriginalArrivalTime"];
+  return {
+    chatId: SELF_CHAT_ID,
+    clientMessageId,
+    ...(typeof arrival === "number" ? { time: new Date(arrival).toISOString() } : {}),
+  };
+}
+
+/** Reads. Errors never include response bodies. */
 async function get(fetchImpl: Fetch, session: Session, url: string): Promise<unknown> {
   if (!(url.startsWith(`${session.messageApi}/`) && isMessageApi(session.messageApi))) {
     throw new ClerkhandError("teams_error", "Refused a request outside the Teams chat service.");

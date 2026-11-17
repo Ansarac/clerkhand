@@ -21,9 +21,11 @@ After installing the package CLI, replace `node packages/teams/dist/cli.js` with
 | `whoami`                             | Verify identity online; returns display name without credentials.                                                                |
 | `chats [--limit N] [--unread]`       | List self, 1:1 and group chats, default 20, maximum 200; use returned exact IDs.                                                 |
 | `read <chat-id                       | self> [--last N]`                                                                                                                | Recent history, oldest first; default 20, maximum 200. |
+| `draft self --text T`                | Preview a self-chat message and its confirmation hash; no network access.                                                        |
+| `send self --text T --confirm H`     | Send exactly that text to the self-chat. Other targets are refused.                                                              |
 | `setup claude [--scope user          | project] [--write]`                                                                                                              | Preview or apply the maintained skill and permissions. |
 
-Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Each chat has `unread` (`true`, `false`, or `null` when Teams gives no read marker); `chats --unread` lists only unread chats. Chat display names, team channels, search and message writes are not supported.
+Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Each chat has `unread` (`true`, `false`, or `null` when Teams gives no read marker); `chats --unread` lists only unread chats. Chat display names, team channels, search, editing, deleting and sending to anyone but yourself are not supported.
 
 ## Troubleshooting
 
@@ -37,6 +39,8 @@ Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","de
 | `auth_response_invalid`, `auth_identity_unavailable` | The internal authentication shape changed; report safe field metadata, never raw responses.                            |
 | `chat_not_found`                                     | The ID is not a chat this account can read. Use an exact ID from `chats`.                                              |
 | `teams_error`, `teams_schema`                        | Report the safe error (HTTP status only); do not loop authentication refreshes.                                        |
-| `write_disabled`                                     | Writes are unavailable in this version.                                                                                |
+| `draft_changed`                                      | The text differs from the confirmed draft. Draft again and get a new confirmation.                                     |
+| `send_unconfirmed`                                   | The send may or may not have happened. Read the self-chat before trying again; never resend blindly.                   |
+| `send_target_disabled`, `write_disabled`             | Unavailable in this version.                                                                                           |
 
 See [security](security.md) and the [original UI archive](teams-ui-archive.md).
