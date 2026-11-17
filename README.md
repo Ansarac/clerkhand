@@ -20,6 +20,7 @@ Reading and drafting are allowed by default. Anything other people can see (send
 ## Docs
 
 - [Overview](docs/overview.md)
+- [agent-messenger transition proposal](docs/agent-messenger-transition.md)
 - [Security model](docs/security.md)
 - [Claude Code setup](docs/claude-code-setup.md)
 - [Teams](docs/teams.md)
