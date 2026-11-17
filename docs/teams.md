@@ -1,46 +1,42 @@
 # Teams
 
-`clerkhand-teams` drives the Teams web app (`teams.cloud.microsoft`) in its own headless Microsoft Edge profile. Every command prints one JSON object:
+Requires Node 26, pnpm 12, Microsoft Edge, and a work-account Teams web login permitted by your tenant. Use `CLERKHAND_BROWSER` for another installed Chromium executable. Normal login, MFA and conditional access are handled in the browser.
 
-```json
-{"ok":true,"data":{}}
-{"ok":false,"error":{"code":"chat_not_found","message":"…","details":{}}}
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+node packages/teams/dist/cli.js auth refresh --headed --wait 180
+node packages/teams/dist/cli.js auth status
+node packages/teams/dist/cli.js whoami
+node packages/teams/dist/cli.js chats --limit 20
+node packages/teams/dist/cli.js read self --last 20
 ```
 
-Exit codes: `0` ok, `1` error, `2` usage error.
+After installing the package CLI, replace `node packages/teams/dist/cli.js` with `clerkhand-teams`.
 
-## Commands
+| Command                              | Behavior                                                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `auth status` / `status`             | Local credential expiry check; does not prove online validity.                                                                   |
+| `auth refresh [--headed] [--wait N]` | Get and verify a Skype token from the dedicated profile. Default 30 seconds; maximum 300. First login normally needs `--headed`. |
+| `whoami`                             | Verify identity online; returns display name without credentials.                                                                |
+| `chats [--limit N]`                  | List chats, default 20, maximum 200; use returned exact IDs.                                                                     |
+| `read <chat-id                       | self> [--last N]`                                                                                                                | Recent history, oldest first; default 20, maximum 200. |
+| `search <query>`                     | Returns `search_unavailable`; upstream requires an AAD refresh token.                                                            |
+| `setup claude [--scope user          | project] [--write]`                                                                                                              | Preview or apply the maintained skill and permissions. |
 
-| Command                                          | Output                                                                                    |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `login`                                          | Opens a visible window for sign-in, then closes it. `{signedIn}`                          |
-| `status`                                         | `{ready, signedIn, lang}`                                                                 |
-| `chats [--unread] [--limit N]`                   | `{chats: [{id, name, kind, folder, unread, muted}]}`                                      |
-| `read <chat> [--last N]`                         | `{chat: {id, name, kind}, messages: [{id, author, time, text, edited}]}`, oldest first    |
-| `draft <chat> --text T`                          | Replaces the unsent draft and reads it back. `{chat: {id, name, kind}, draft, hash}`      |
-| `draft show <chat>`                              | `{chat, draft, hash}`; `draft` is `""` when there is none                                 |
-| `draft clear <chat>`                             | Removes the unsent draft. `{chat, draft: "", hash}`                                       |
-| `send <chat> --confirm <hash>`                   | Sends the draft if its hash is `<hash>`. `{chat, sent: {id, author, time, text, edited}}` |
-| `setup claude [--scope user\|project] [--write]` | Shows (or writes) Claude Code permission rules and the tool skill                         |
+Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Chat display names, unread filtering, UI drafts and message writes are not supported by this migration.
 
-Browser commands accept `--headed` to show the window for debugging.
+## Troubleshooting
 
-- `kind` is `oneOnOne`, `group`, `meeting`, `self` or `other`.
-- `<chat>` is a chat `id` (stable Teams thread id, preferred) or a display name. Names match exactly, then case-insensitively; duplicates fail with `ambiguous_chat` and candidates. Nothing is guessed.
-- `--last` defaults to 20, maximum 200. Older messages are loaded by scrolling.
-- `read` and `draft` open the chat, which marks it as read.
-- `draft` never sends. Newlines in `--text` become line breaks. The draft is the compose box content; Teams keeps it per chat.
-- `hash` is the first 12 hex digits of the SHA-256 of the draft text. `send` refuses (`draft_changed`) unless the draft still has the confirmed hash, and refuses an empty draft (`draft_empty`). It then waits up to 15 s for the message to appear in the chat; if it does not, it fails with `send_unconfirmed` and never clicks again.
+| Error                                                | Action                                                                                                                 |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `login_required`                                     | Run refresh with `--headed` and complete normal sign-in before the timeout.                                            |
+| `profile_busy`                                       | Wait for the owning operation or close the dedicated profile yourself. Do not kill someone else's browser.             |
+| `auth_identity_changed`                              | Use a separate `CLERKHAND_HOME` for another user or tenant. Old credentials were preserved.                            |
+| `credential_file_invalid`                            | The file is not a valid clerkhand-managed credential. Preserve it for local investigation; never print it to an agent. |
+| `authentication_failed`                              | Built-in refresh/retry was exhausted or verification failed; report the error.                                         |
+| `auth_response_invalid`, `auth_identity_unavailable` | The internal authentication shape changed; report safe field metadata, never raw responses.                            |
+| `messenger_error`, `messenger_schema`                | Report the safe error; do not loop authentication refreshes.                                                           |
+| `search_unavailable`, `write_disabled`               | Capability is unavailable in this version.                                                                             |
 
-## Sign-in
-
-Most corporate setups sign in automatically through Edge SSO, even headless. If `status` reports `signedIn: false`, run `clerkhand-teams login` and finish the sign-in in the window.
-
-## Scope and limits (v0.1)
-
-- English Teams UI only; other languages fail with `unsupported_language`.
-- Chats only, no channels.
-- Only chats in the sidebar can be opened. Deep links stop at a "use the web app" launcher page, so they are not used.
-- Chat lists in compact view have no message preview; `chats` does not report one.
-- The first run after a new profile takes up to a minute while Teams caches its assets; later commands take about a second.
-- Collapsed sidebar folders are expanded briefly to read or click a chat and collapsed again. The folder state belongs to the clerkhand profile, not to your own Teams.
+See [security](security.md), [migration validation](agent-messenger-validation.md) and the [original UI archive](teams-ui-archive.md).

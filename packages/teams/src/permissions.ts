@@ -3,30 +3,34 @@ import type { PermissionRules } from "@clerkhand/core";
 
 export const BIN = "clerkhand-teams";
 export const SKILL_NAME = "clerkhand-teams";
+export const ALLOWED_COMMANDS = [
+  "auth status",
+  "auth refresh",
+  "status",
+  "whoami",
+  "chats",
+  "read",
+  "search",
+] as const;
+export const DISABLED_COMMANDS = ["draft", "send", "edit", "delete", "undo-delete"] as const;
 
-/**
- * Commands that run without a prompt: they read, or change only the user's own
- * unsent draft, which nobody else sees.
- */
-export const ALLOWED_COMMANDS = ["status", "chats", "read", "draft"] as const;
-
-/** Commands others can see. Every call needs the user's approval. */
-export const ASK_COMMANDS = ["send"] as const;
-
+/** Prefix rules are a cooperative agent boundary; arbitrary shell/code access requires a sandbox. */
 export const PERMISSIONS: PermissionRules = {
   allow: ALLOWED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
-  ask: ASK_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
-  // Direct driver access would bypass every check in this tool. Rules match
-  // command prefixes only; the action policy in the browser is the backstop.
+  ask: [],
   deny: [
-    "Bash(agent-browser *)",
-    "Bash(npx agent-browser *)",
-    "Bash(pnpm exec agent-browser *)",
-    "Bash(pnpm dlx agent-browser *)",
+    ...DISABLED_COMMANDS.map((command) => `Bash(${BIN} ${command} *)`),
+    ...["agent-browser", "agent-messenger", "agent-teams", "amsg"].flatMap((bin) => [
+      `Bash(${bin} *)`,
+      `Bash(npx ${bin} *)`,
+      `Bash(pnpm exec ${bin} *)`,
+      `Bash(pnpm dlx ${bin} *)`,
+      `Bash(npm exec ${bin} *)`,
+      `Bash(bunx ${bin} *)`,
+      `Bash(node *${bin}*)`,
+    ]),
   ],
 };
-
-/** The tool skill shipped with this package (works from src/ and dist/). */
 export function skillPath(): string {
   return fileURLToPath(new URL(`../skills/${SKILL_NAME}/SKILL.md`, import.meta.url));
 }

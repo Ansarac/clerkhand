@@ -1,21 +1,14 @@
 import { type ParseArgsConfig, parseArgs } from "node:util";
-import { ClerkhandError, type Driver, EXIT_USAGE } from "@clerkhand/core";
-import type { Clock } from "./teams.js";
+import { ClerkhandError, EXIT_USAGE } from "@clerkhand/core";
+import type { AuthDependencies } from "./auth.js";
+import type { AuthPaths } from "./storage.js";
 
-export interface Context {
-  /**
-   * Creates the browser driver; only commands that need the browser call it.
-   * `fill` additionally allows filling a field; only `draft` asks for it.
-   */
-  driver: (options: { headed: boolean; fill?: boolean }) => Driver;
+export interface Context extends AuthDependencies {
+  paths: AuthPaths;
   home: string;
   cwd: string;
-  clock?: Clock;
 }
-
 export type Command = (args: string[], ctx: Context) => Promise<unknown>;
-
-/** `parseArgs` with usage errors mapped to exit code 2. */
 export function parse<T extends ParseArgsConfig>(args: string[], config: T) {
   try {
     return parseArgs({ ...config, args, strict: true });
@@ -23,18 +16,14 @@ export function parse<T extends ParseArgsConfig>(args: string[], config: T) {
     throw usage((error as Error).message);
   }
 }
-
 export function usage(message: string): ClerkhandError {
   return new ClerkhandError("usage", message, { exitCode: EXIT_USAGE });
 }
-
-export function positiveInt(value: string | undefined, name: string, fallback: number): number {
-  if (value === undefined) {
-    return fallback;
-  }
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 1) {
-    throw usage(`${name} must be a positive integer, got "${value}".`);
+const MAX_RESULTS = 200;
+export function limit(value: string | undefined, fallback = 20): number {
+  const n = value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_RESULTS) {
+    throw usage("Limit must be an integer from 1 to 200.");
   }
   return n;
 }

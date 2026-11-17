@@ -5,6 +5,11 @@
 .profiles/
 .playwright-cli/
 
+# Managed authentication data and network captures must never enter git.
+teams-auth/
+teams-credentials.json
+*.har
+
 # Locally installed tools (superseded by workspace dependencies)
 tools/
 

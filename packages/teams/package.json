@@ -1,7 +1,7 @@
 {
   "name": "@clerkhand/teams",
   "version": "0.0.0",
-  "description": "Microsoft Teams web CLI for AI agents. Read, summarize and draft; you decide what gets sent.",
+  "description": "Teams browser authentication and bounded, read-only agent-messenger workflows for AI agents.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -15,10 +15,10 @@
     "node": ">=26"
   },
   "dependencies": {
-    "@clerkhand/core": "workspace:*"
+    "@clerkhand/core": "workspace:*",
+    "agent-messenger": "2.43.0"
   },
   "devDependencies": {
-    "vitest": "catalog:",
-    "happy-dom": "catalog:"
+    "vitest": "catalog:"
   }
 }

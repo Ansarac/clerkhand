@@ -28,11 +28,13 @@ pnpm setup                                        # once: adds PNPM_HOME to PATH
 pnpm add -g "link:$(pwd)/packages/teams"           # symlink, so rebuilds take effect
 ```
 
-The repo's `.claude/settings.json` allows the read commands and denies running `agent-browser` directly. The CLI uses the real data directory unless `CLERKHAND_HOME` is set. Test write actions only in your own self-chat, and never send (see `CLAUDE.md`).
+The repo's `.claude/settings.json` allows authentication and reads and denies direct browser/upstream access. The CLI uses the real data directory unless `CLERKHAND_HOME` is set. Live message checks are read-only and confined to self-chat (see `CLAUDE.md`).
 
-## Page functions
+## Authentication and upstream integration
 
-Code in `packages/*/src/page/` runs inside the browser: the driver sends `fn.toString()` and calls it there. A page function must not reference imports or anything outside its own body. Tests rebuild each one from its source (`inPage` in `test/helpers.ts`) and run it against synthetic happy-dom markup, so an outside reference fails in tests, not in the browser.
+The Teams package owns the dedicated `teams-auth` profile and managed credential file. The only data integration is the pinned public agent-messenger CLI, resolved from package metadata and spawned without a shell. Do not import private upstream entrypoints or restore the archived UI backend. Tests use synthetic JWT claims and messages, hand-written browser/CLI fakes and temporary data directories.
+
+An authenticated response must match the request's user identity, and the newly staged credential must pass `whoami` before atomic replacement. Authentication errors, file ownership, permissions, cleanup and output suppression are observable test invariants. On Windows, validate ACL behavior as well as Unix mode checks in CI.
 
 ## Conventions
 
