@@ -42,6 +42,8 @@ export interface Credential {
   expiresAt: string;
   userId: string;
   tenantId: string;
+  /** Display name from the sign-in token's `name` claim, when present. */
+  displayName?: string;
 }
 /** A credential verified against Teams, with the chat service region it belongs to. */
 export interface StoredCredential extends Credential {

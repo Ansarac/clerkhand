@@ -11,7 +11,11 @@ const NOT_AN_ID = /[\u0000-\u001f\s]/u;
 
 export const whoami: Command = async (args, ctx) => {
   parse(args, {});
-  const name = await withReadSession(ctx, (session) => apiWhoami(ctx.fetch, session));
+  // Verifies the credential online; the name comes from sign-in, as Teams' profile often lacks it.
+  const name = await withReadSession(ctx, async (session) => {
+    const profileName = await apiWhoami(ctx.fetch, session);
+    return session.userName.startsWith("orgid:") ? profileName : session.userName;
+  });
   return { displayName: name.slice(0, MAX_NAME_LENGTH), verified: true };
 };
 
