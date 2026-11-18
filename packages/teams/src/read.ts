@@ -86,9 +86,15 @@ export function isUnread(conversation: Record<string, unknown>, userId: string):
   if (fromUser(last, userId)) {
     return false;
   }
+  const readId = readMarker(conversation);
+  return readId === null ? null : lastId > readId;
+}
+
+/** The ID (send time) of the last message the user has read, or `null` when Teams gives none. */
+export function readMarker(conversation: Record<string, unknown>): number | null {
   const horizon = record(conversation["properties"])["consumptionhorizon"];
   const readId = typeof horizon === "string" ? Number(horizon.split(";")[0]) : Number.NaN;
-  return Number.isSafeInteger(readId) ? lastId > readId : null;
+  return Number.isSafeInteger(readId) ? readId : null;
 }
 
 /** Whether a raw Teams message was sent by the signed-in user. */
@@ -160,7 +166,7 @@ export function compactMessages(fetched: unknown[], limit: number) {
         textTruncated: content.length > MAX_TEXT,
       };
     })
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .reverse();
   return { messages, truncated: fetched.length > limit };
 }
 

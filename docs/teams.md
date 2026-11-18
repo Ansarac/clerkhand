@@ -20,6 +20,7 @@ After installing the package CLI, replace `node packages/teams/dist/cli.js` with
 | `auth refresh [--headed] [--wait N]`        | Get and verify a Skype token from the dedicated profile. Default 30 seconds; maximum 300. First login normally needs `--headed`. |
 | `whoami`                                    | Verify identity online; returns display name without credentials.                                                                |
 | `chats [--limit N] [--unread]`              | List self, 1:1, group and meeting chats, default 20, maximum 200; use returned exact IDs.                                        |
+| `read <chat-id> --unread [--last N]`        | Only messages after the read marker; `unread_unknown` when Teams has none.                                                       |
 | `find <name>`                               | Find chats by group/meeting name, 1:1 partner, or last sender of a group. Returns all matches.                                   |
 | `read <chat-id                              | self> [--last N]`                                                                                                                | Recent history, oldest first; default 20, maximum 200. |
 | `draft <chat-id\|self> --text T`            | Preview: chat kind, name, participants, last three messages and confirmation hash. Sends nothing.                                |
