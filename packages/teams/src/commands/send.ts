@@ -8,7 +8,15 @@ import {
   sendMessage,
 } from "../api.js";
 import { type Command, parse, usage } from "../context.js";
-import { compactChats, compactMessages, senderName, withReadSession } from "../read.js";
+import { type Person, toTeamsHtml } from "../format.js";
+import {
+  authors,
+  compactChats,
+  compactMessages,
+  type ReadSession,
+  senderName,
+  withReadSession,
+} from "../read.js";
 import { record } from "../storage.js";
 
 const MAX_TEXT = 4000;
@@ -22,9 +30,12 @@ const MAX_PARTICIPANTS = 10;
 const DRAFT_USAGE = "Usage: clerkhand-teams draft <chat-id|self> --text T";
 const SEND_USAGE = "Usage: clerkhand-teams send <chat-id|self> --text T --confirm <hash>";
 
-/** Identifies the exact target and text; `send --confirm` must quote it. */
-export function draftHash(chatId: string, text: string): string {
-  return createHash("sha256").update(`${chatId}\n${text}`).digest("hex").slice(0, HASH_LENGTH);
+/** Identifies the exact chat, text and mentioned people; `send --confirm` must quote it. */
+export function draftHash(chatId: string, text: string, mentions: readonly Person[] = []): string {
+  return createHash("sha256")
+    .update(`${chatId}\n${text}\n${mentions.map((p) => p.mri).join(",")}`)
+    .digest("hex")
+    .slice(0, HASH_LENGTH);
 }
 
 function target(args: string[], usageText: string, confirm: boolean) {
@@ -68,6 +79,7 @@ export const draft: Command = (args, ctx) => {
       );
     }
     const history = await listMessages(ctx.fetch, session, chatId, HISTORY);
+    const { mentions } = toTeamsHtml(text, people(session, history));
     const participants = [
       ...new Set(history.map((m) => senderName(record(m), session.userId))),
     ].filter((name) => name && name !== "me");
@@ -83,26 +95,55 @@ export const draft: Command = (args, ctx) => {
       participants: participants.slice(0, MAX_PARTICIPANTS),
       recent,
       text,
-      hash: draftHash(chatId, text),
+      mentions: mentions.map((p) => p.name),
+      hash: draftHash(chatId, text, mentions),
     };
   });
 };
 
-/** Sends only if `--confirm` matches the draft hash of exactly this chat and text. */
+/** Mentions resolve against recent authors, which needs a read; plain text needs none. */
+async function format(
+  ctx: Parameters<Command>[1],
+  session: ReadSession,
+  chatId: string,
+  text: string,
+) {
+  const history = text.includes("@[")
+    ? await listMessages(ctx.fetch, session, chatId, HISTORY)
+    : [];
+  return toTeamsHtml(text, people(session, history));
+}
+
+/** Recent authors plus the user, who can be mentioned too (useful in the self-chat). */
+function people(session: ReadSession, history: unknown[]): Person[] {
+  const me = { name: session.userName, mri: `8:orgid:${session.userId}` };
+  const others = authors(history).filter((p) => p.mri !== me.mri);
+  return me.name.startsWith("orgid:") ? others : [...others, me];
+}
+
+/** Sends only if `--confirm` matches the draft hash of exactly this chat, text and mentions. */
 export const send: Command = async (args, ctx) => {
   const { chatId, text, confirm } = target(args, SEND_USAGE, true);
   if (confirm === undefined || !HASH.test(confirm)) {
     throw usage(`--confirm must be the 12-character hash from draft.\n${SEND_USAGE}`);
   }
-  // The correct hash is deliberately not returned: a change needs a new draft and approval.
-  if (confirm !== draftHash(chatId, text)) {
-    throw new ClerkhandError(
-      "draft_changed",
-      "The chat or text is not the one confirmed. Run draft again, show it to the user and confirm.",
-    );
+  if (!text.includes("@[") && confirm !== draftHash(chatId, text)) {
+    throw changed();
   }
-  const sent = await withReadSession(ctx, (session) =>
-    sendMessage(ctx.fetch, session, chatId, text),
-  );
+  const sent = await withReadSession(ctx, async (session) => {
+    const message = await format(ctx, session, chatId, text);
+    if (confirm !== draftHash(chatId, text, message.mentions)) {
+      throw changed();
+    }
+    return sendMessage(ctx.fetch, session, chatId, message);
+  });
   return { sent: true, ...sent };
 };
+
+/** The correct hash is deliberately not returned: a change needs a new draft and approval. */
+function changed(): ClerkhandError {
+  return new ClerkhandError(
+    "draft_changed",
+    "The chat, text or mentioned people are not the ones confirmed. Run draft again, show it to the user and confirm.",
+  );
+}

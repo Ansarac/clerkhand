@@ -1,4 +1,5 @@
 import { ClerkhandError } from "@clerkhand/core";
+import { type Formatted, mentionProperty } from "./format.js";
 import { isMessageApi, record } from "./storage.js";
 
 const REGIONS = ["amer", "emea", "apac"] as const;
@@ -28,14 +29,14 @@ export function isSendableChatId(chatId: string): boolean {
 }
 
 /**
- * The only write: a plain-text message to one chat. Never retried here; a request that does not
+ * The only write: one formatted message to one chat. Never retried here; a request that does not
  * complete leaves the outcome unknown.
  */
 export async function sendMessage(
   fetchImpl: Fetch,
-  session: Session,
+  session: Session & { userName: string },
   chatId: string,
-  text: string,
+  message: Formatted,
 ) {
   if (!isSendableChatId(chatId)) {
     throw new ClerkhandError(
@@ -55,10 +56,14 @@ export async function sendMessage(
         method: "POST",
         headers: { ["X-Skypetoken"]: session.token, ["content-type"]: "application/json" },
         body: JSON.stringify({
-          content: text,
-          messagetype: "Text",
+          content: message.html,
+          messagetype: "RichText/Html",
           contenttype: "text",
           clientmessageid: clientMessageId,
+          imdisplayname: session.userName,
+          ...(message.mentions.length > 0
+            ? { properties: { mentions: mentionProperty(message.mentions) } }
+            : {}),
         }),
         redirect: "error",
         signal: AbortSignal.timeout(TIMEOUT_MS),

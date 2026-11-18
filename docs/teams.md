@@ -27,7 +27,7 @@ After installing the package CLI, replace `node packages/teams/dist/cli.js` with
 | `send <chat-id\|self> --text T --confirm H` | Send exactly that drafted text to that chat. Channels are refused.                                                               |
 | `setup claude [--scope user                 | project] [--write]`                                                                                                              | Preview or apply the maintained skill and permissions. |
 
-Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Each chat has `unread` (`true`, `false`, or `null` when Teams gives no read marker); `chats --unread` lists only unread chats. Chat display names, team channels, search, editing, deleting and channel posts are not supported.
+Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`. Message text is limited to 4,000 characters with `textTruncated`; item limits set `truncated`. Each chat has `unread` (`true`, `false`, or `null` when Teams gives no read marker); `chats --unread` lists only unread chats. Sent text supports paragraphs, line breaks, `-`/`1.` lists, `**bold**`, `` `code` ``, links, and `@[Exact Name]` mentions of people who wrote recently in the chat. Chat display names, team channels, search, editing, deleting and channel posts are not supported.
 
 ## Troubleshooting
 
@@ -43,6 +43,7 @@ Output is `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","de
 | `teams_error`, `teams_schema`                        | Report the safe error (HTTP status only); do not loop authentication refreshes.                                        |
 | `draft_changed`                                      | The chat or text differs from the confirmed draft. Draft again and get a new confirmation.                             |
 | `send_unconfirmed`                                   | The send may or may not have happened. Read the chat before trying again; never resend blindly.                        |
+| `mention_unknown`                                    | The `@[name]` is not exactly one recent participant; use a name from `details.participants`.                           |
 | `send_target_disabled`                               | Not an exact chat ID (channels and display names are refused). Use `find` or `chats`.                                  |
 | `write_disabled`                                     | Edit, delete and restore are unavailable in this version.                                                              |
 

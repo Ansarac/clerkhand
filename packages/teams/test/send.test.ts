@@ -97,7 +97,7 @@ describe("draft and send", () => {
     expect(body.data.recent.map((m: { text: string }) => m.text)).toEqual(["Hello", "Latest"]);
     expect(posts(service.requests)).toEqual([]);
   });
-  it("sends exactly the confirmed text as plain text to the confirmed chat, once", async () => {
+  it("sends exactly the confirmed text as escaped HTML to the confirmed chat, once", async () => {
     const { ctx } = context({ credential: true });
     const service = chatService({
       [CHAT_PATH]: () => ({ ["OriginalArrivalTime"]: Date.UTC(2030, 0, 1) }),
@@ -115,8 +115,39 @@ describe("draft and send", () => {
     expect(sent).toHaveLength(1);
     expect(new URL(String(service.requests.at(-1)?.url)).pathname).toBe(CHAT_PATH);
     expect(JSON.parse(String(sent[0]?.init?.body))).toMatchObject({
-      content: TEXT,
-      messagetype: "Text",
+      content: `<p>${TEXT}</p>`,
+      messagetype: "RichText/Html",
+    });
+  });
+  it("mentions a recent participant and binds the mentioned person to the hash", async () => {
+    const { ctx } = context({ credential: true });
+    const service = chatService();
+    ctx.fetch = service.fetch;
+    const text = "@[Synthetic Person] please review";
+    const drafted = await run(["draft", ONE_ON_ONE, "--text", text], ctx);
+    expect(drafted.body.data.mentions).toEqual(["Synthetic Person"]);
+    const plainHash = draftHash(ONE_ON_ONE, text);
+    const unbound = await run(["send", ONE_ON_ONE, "--text", text, "--confirm", plainHash], ctx);
+    expect(unbound.body.error.code).toBe("draft_changed");
+    expect(posts(service.requests)).toEqual([]);
+    const { hash } = drafted.body.data;
+    expect((await run(["send", ONE_ON_ONE, "--text", text, "--confirm", hash], ctx)).code).toBe(0);
+    const body = JSON.parse(String(posts(service.requests)[0]?.init?.body));
+    expect(body.content).toContain('itemtype="http://schema.skype.com/Mention"');
+    // Without the sender name, others reading through the API would see no author.
+    expect(body.imdisplayname).toBe("Synthetic User");
+    expect(JSON.parse(body.properties.mentions)[0]).toMatchObject({
+      mri: "8:orgid:synthetic-other",
+      displayName: "Synthetic Person",
+    });
+  });
+  it("refuses to draft a mention of someone who is not a recent participant", async () => {
+    const { ctx } = context({ credential: true });
+    ctx.fetch = chatService().fetch;
+    const drafted = await run(["draft", ONE_ON_ONE, "--text", "@[Nobody] hi"], ctx);
+    expect(drafted.body.error).toMatchObject({
+      code: "mention_unknown",
+      details: { participants: ["Synthetic Person", "Synthetic User"] },
     });
   });
   it("binds the hash to the chat: a hash for one chat cannot send to another", async () => {
