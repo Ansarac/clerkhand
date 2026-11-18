@@ -14,6 +14,7 @@ const REFRESH = { headed: false, waitSeconds: 30 };
  */
 export interface ReadSession extends Session {
   userId: string;
+  userName: string;
 }
 export function withReadSession<T>(
   ctx: Context,
@@ -46,7 +47,12 @@ function session(ctx: Context): ReadSession {
   if (!credential) {
     throw new ClerkhandError("authentication_failed", "No managed credential after refresh.");
   }
-  return { token: credential.token, messageApi: credential.messageApi, userId: credential.userId };
+  return {
+    token: credential.token,
+    messageApi: credential.messageApi,
+    userId: credential.userId,
+    userName: credential.userName,
+  };
 }
 
 function text(value: unknown, max = MAX_FIELD): string {
@@ -113,7 +119,8 @@ export function authors(messages: unknown[]): { name: string; mri: string }[] {
       String(message["from"] ?? "")
         .split("/")
         .pop() ?? "";
-    const name = text(message["imdisplayname"]);
+    // Messages sent through the API before names were included have an empty imdisplayname.
+    const name = text(message["imdisplayname"]) || text(message["fromDisplayNameInToken"]);
     if (mri.startsWith("8:orgid:") && name) {
       people.set(mri, name);
     }
@@ -198,7 +205,9 @@ const ENTITIES: Record<string, string> = {
 const EMOJI = /<img\b[^>]*itemtype="http:\/\/schema\.skype\.com\/Emoji"[^>]*>/giu;
 const ALT = /\balt="(?<alt>[^"]*)"/u;
 const LINK = /<a\b[^>]*\bhref="(?<href>[^"]*)"[^>]*>(?<label>[\s\S]*?)<\/a>/giu;
-const BLOCK = /<\/?(?:p|div|li|tr|blockquote|pre|h[1-6]|ul|ol|table)\b[^>]*>/giu;
+const LIST_ITEM = /<li\b[^>]*>/giu;
+const LIST_ITEM_END = /<\/li>/giu;
+const BLOCK = /<\/?(?:p|div|tr|blockquote|pre|h[1-6]|ul|ol|table)\b[^>]*>/giu;
 const TAG = /<[^>]*>/gu;
 const MAX_CODE_POINT = 0x10_ff_ff;
 const HEX = 16;
@@ -215,6 +224,8 @@ export function htmlToText(html: string): string {
         return !plain || plain === href ? href : `${plain} (${href})`;
       })
       .replace(/<br\s*\/?>/giu, "\n")
+      .replace(LIST_ITEM_END, "")
+      .replace(LIST_ITEM, "\n- ")
       .replace(BLOCK, "\n")
       .replace(TAG, ""),
   )

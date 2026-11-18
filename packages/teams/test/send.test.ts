@@ -134,6 +134,8 @@ describe("draft and send", () => {
     expect((await run(["send", ONE_ON_ONE, "--text", text, "--confirm", hash], ctx)).code).toBe(0);
     const body = JSON.parse(String(posts(service.requests)[0]?.init?.body));
     expect(body.content).toContain('itemtype="http://schema.skype.com/Mention"');
+    // Without the sender name, others reading through the API would see no author.
+    expect(body.imdisplayname).toBe("Synthetic User");
     expect(JSON.parse(body.properties.mentions)[0]).toMatchObject({
       mri: "8:orgid:synthetic-other",
       displayName: "Synthetic Person",
@@ -145,7 +147,7 @@ describe("draft and send", () => {
     const drafted = await run(["draft", ONE_ON_ONE, "--text", "@[Nobody] hi"], ctx);
     expect(drafted.body.error).toMatchObject({
       code: "mention_unknown",
-      details: { participants: ["Synthetic Me", "Synthetic Person"] },
+      details: { participants: ["Synthetic Person", "Synthetic User"] },
     });
   });
   it("binds the hash to the chat: a hash for one chat cannot send to another", async () => {

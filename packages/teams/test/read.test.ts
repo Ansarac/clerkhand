@@ -202,6 +202,9 @@ describe("bounded read workflows", () => {
         '<p>Hello <b>there</b>&nbsp;&#x1F600;<img itemtype="http://schema.skype.com/Emoji" alt="🙂"></p><p>See <a href="https://example.test/x">docs</a><br>and https://example.test</p>',
       ),
     ).toBe("Hello there 😀🙂\n\nSee docs (https://example.test/x)\nand https://example.test");
+    expect(htmlToText("<p>Todo:</p>\r\n<ul>\r\n<li><b>one</b></li><li>two</li></ul>")).toBe(
+      "Todo:\n\n- one\n- two",
+    );
   });
   it("rejects writes, removed commands and invalid input before any backend call", async () => {
     const { ctx, calls, requests } = context();

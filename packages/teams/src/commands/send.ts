@@ -79,7 +79,7 @@ export const draft: Command = (args, ctx) => {
       );
     }
     const history = await listMessages(ctx.fetch, session, chatId, HISTORY);
-    const { mentions } = toTeamsHtml(text, authors(history));
+    const { mentions } = toTeamsHtml(text, people(session, history));
     const participants = [
       ...new Set(history.map((m) => senderName(record(m), session.userId))),
     ].filter((name) => name && name !== "me");
@@ -108,10 +108,17 @@ async function format(
   chatId: string,
   text: string,
 ) {
-  const people = text.includes("@[")
-    ? authors(await listMessages(ctx.fetch, session, chatId, HISTORY))
+  const history = text.includes("@[")
+    ? await listMessages(ctx.fetch, session, chatId, HISTORY)
     : [];
-  return toTeamsHtml(text, people);
+  return toTeamsHtml(text, people(session, history));
+}
+
+/** Recent authors plus the user, who can be mentioned too (useful in the self-chat). */
+function people(session: ReadSession, history: unknown[]): Person[] {
+  const me = { name: session.userName, mri: `8:orgid:${session.userId}` };
+  const others = authors(history).filter((p) => p.mri !== me.mri);
+  return me.name.startsWith("orgid:") ? others : [...others, me];
 }
 
 /** Sends only if `--confirm` matches the draft hash of exactly this chat, text and mentions. */

@@ -106,7 +106,10 @@ export function credentialFromDetail(value: unknown, now: number): Credential {
       "Teams authentication request and response belong to different identities.",
     );
   }
-  return credential;
+  const name = aad["name"];
+  return typeof name === "string" && name.trim()
+    ? { ...credential, displayName: name.trim() }
+    : credential;
 }
 
 export function authStatus(credential: Credential | undefined, now: number) {
@@ -217,7 +220,13 @@ async function captureCredential(
 /** The new credential must work against Teams before it replaces the previous one. */
 async function validateAndSave(paths: AuthPaths, credential: Credential, fetchImpl: Fetch) {
   const { messageApi, displayName } = await discover(fetchImpl, credential.token);
-  saveCredential(paths.credentialsPath, { ...credential, userName: displayName, messageApi });
+  const { displayName: signedInName, ...rest } = credential;
+  // Teams' own profile often only holds "orgid:..."; the sign-in token has the real name.
+  saveCredential(paths.credentialsPath, {
+    ...rest,
+    userName: signedInName ?? displayName,
+    messageApi,
+  });
   rmSync(paths.legacyDir, { recursive: true, force: true });
   return {
     authenticated: true,

@@ -21,6 +21,7 @@ import {
   TENANT_ID,
   teamsService,
   token,
+  USER_ID,
 } from "./helpers.js";
 
 const options = { headed: false, waitSeconds: 2 };
@@ -95,6 +96,20 @@ describe("authentication transaction", () => {
     expect(existsSync(ctx.paths.legacyDir)).toBe(false);
     expect(calls.at(-1)).toEqual(["close"]);
     expect(existsSync(ctx.paths.lockPath)).toBe(false);
+  });
+  it("takes the user's name from the sign-in token when Teams' profile only has an ID", async () => {
+    const signedIn = {
+      ...detail(),
+      headers: {
+        ["Authorization"]: `Bearer ${jwt({ oid: USER_ID, tid: TENANT_ID, name: "Synthetic Signed In" })}`,
+      },
+    };
+    const { ctx } = context({ detail: signedIn });
+    ctx.fetch = teamsService({
+      "/v1/users/ME/properties": () => ({ primaryMemberName: `orgid:${USER_ID}` }),
+    }).fetch;
+    await withLock(ctx.paths, () => refreshCredential(ctx.paths, options, ctx));
+    expect(loadCredential(ctx.paths.credentialsPath)?.userName).toBe("Synthetic Signed In");
   });
   it("keeps the previous file byte-for-byte when verification fails", async () => {
     const { ctx, calls } = context({ credential: true });

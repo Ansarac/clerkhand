@@ -34,7 +34,7 @@ export function isSendableChatId(chatId: string): boolean {
  */
 export async function sendMessage(
   fetchImpl: Fetch,
-  session: Session,
+  session: Session & { userName: string },
   chatId: string,
   message: Formatted,
 ) {
@@ -60,6 +60,7 @@ export async function sendMessage(
           messagetype: "RichText/Html",
           contenttype: "text",
           clientmessageid: clientMessageId,
+          imdisplayname: session.userName,
           ...(message.mentions.length > 0
             ? { properties: { mentions: mentionProperty(message.mentions) } }
             : {}),
