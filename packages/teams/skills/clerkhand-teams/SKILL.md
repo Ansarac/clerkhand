@@ -5,7 +5,7 @@ description: Authenticate and read the user's Microsoft Teams chats through cler
 
 # clerkhand-teams
 
-Use `clerkhand-teams`, which owns browser authentication, reads chats and sends confirmed plain-text messages. Each command prints compact JSON: `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`.
+Use `clerkhand-teams`, which owns browser authentication, reads chats and sends confirmed messages. Each command prints compact JSON: `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message","details?"}}`.
 
 ## Authentication
 
@@ -56,6 +56,6 @@ Send only when the user explicitly asks to send a message in this conversation (
 2. `clerkhand-teams draft <chat-id> --text "<text>"`. Show the user the chat name or participants, the last messages for context, and the exact text.
 3. Only after the user approves that recipient and text: `clerkhand-teams send <chat-id> --text "<same text>" --confirm <hash>`.
 
-`draft_changed` means the chat or text differs: draft again and ask again. `send_unconfirmed` means the outcome is unknown: read the chat before doing anything else, and never resend blindly. Messages are plain text; mentions and formatting are not supported. Channels, editing, deleting and restoring are disabled; explain this when asked. Do not use other Teams tools, direct browser commands, or custom API scripts to perform them. The old UI implementation is in the archive branch, not an alternative backend for this skill.
+`draft_changed` means the chat or text differs: draft again and ask again. `send_unconfirmed` means the outcome is unknown: read the chat before doing anything else, and never resend blindly. Message text supports a small Markdown subset: blank line = new paragraph, line break, `- ` or `1. ` lists, `**bold**`, `` `code` `` and bare links; everything else is sent literally. Mention someone with `@[Exact Name]`, using a name from the draft's `participants` (people who wrote recently in that chat); `mention_unknown` lists the allowed names. Use mentions only when the user wants that person notified. Channels, editing, deleting and restoring are disabled; explain this when asked. Do not use other Teams tools, direct browser commands, or custom API scripts to perform them. The old UI implementation is in the archive branch, not an alternative backend for this skill.
 
 For `authentication_failed` after the built-in retry, `teams_error`, `teams_schema` or browser failures, report the safe error. Do not loop refreshes or retries. Never print credentials, raw network responses or secret-bearing diagnostics.
