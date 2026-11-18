@@ -30,6 +30,6 @@ npm install -g --prefix /tmp/clerkhand-try release/clerkhand-teams.tgz
 
 ## One-time setup
 
-1. **Tag ruleset:** change the **release tags** ruleset to target `v*`, and add the GitHub Actions app as a bypass actor so the workflow can create release tags.
+1. **Tag ruleset:** the **release tags** ruleset targets `v*` and blocks updates and deletions, so a published release tag can never move. Creation stays allowed: on a personal-account repository the GitHub Actions app cannot be a bypass actor, and only accounts with write access (the owner and the release workflow) can create tags.
 2. **Actions:** Settings → Actions → General → allow GitHub Actions to create and approve pull requests (for the version PR).
 3. **Optional:** Settings → Environments → `release` (created on the first run): add yourself as a required reviewer so every release waits for your approval.
