@@ -1,7 +1,11 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "includes": ["**", "!**/dist", "!pnpm-lock.yaml"] },
+  "files": {
+    // Biome's Markdown formatter does not know changeset front matter and turns it into
+    // headings, which changesets then cannot parse.
+    "includes": ["**", "!**/dist", "!pnpm-lock.yaml", "!.changeset/*.md"]
+  },
   "formatter": { "indentStyle": "space", "lineWidth": 100 },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
