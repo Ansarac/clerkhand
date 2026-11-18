@@ -139,7 +139,7 @@ export function compactChats(
   return { chats: chats.slice(0, limit), truncated: chats.length > limit };
 }
 
-/** `fetched` is newest first, as Teams returns it; output is oldest first. Fetch `limit + 1`. */
+/** `fetched` is newest first (see listMessages); output is oldest first. Fetch `limit + 1`. */
 export function compactMessages(fetched: unknown[], limit: number) {
   const messages = fetched
     .slice(0, limit)
@@ -157,7 +157,6 @@ export function compactMessages(fetched: unknown[], limit: number) {
         time: text(message["composetime"] ?? message["originalarrivaltime"]),
         text: content.slice(0, MAX_TEXT),
         edited: Boolean(properties["edittime"]),
-        deleted: Boolean(properties["deletetime"]),
         textTruncated: content.length > MAX_TEXT,
       };
     })

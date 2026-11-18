@@ -61,6 +61,33 @@ describe("Teams chat service client", () => {
     expect(result.map((m) => (m as { id: string }).id)).toEqual(["3", "1"]);
     expect(requests).toHaveLength(2);
   });
+  it("returns the newest messages by send time when old ones were modified recently", async () => {
+    const link = `${new URL(MESSAGE_API).origin}${messages}?page=2`;
+    const { fetch, requests } = teamsService({
+      // Teams orders by version: messages 10 and 20 were deleted after 300 was sent.
+      [messages]: (url) =>
+        url.searchParams.has("page")
+          ? {
+              messages: [
+                { id: "200", version: "200", messagetype: "Text" },
+                { id: "100", version: "100", messagetype: "Text" },
+              ],
+              ["_metadata"]: { backwardLink: `${link}3` },
+            }
+          : {
+              messages: [
+                { id: "10", version: "500", messagetype: "Text", properties: { deletetime: "1" } },
+                { id: "300", version: "400", messagetype: "Text" },
+                { id: "20", version: "350", messagetype: "Text", properties: { deletetime: "1" } },
+              ],
+              ["_metadata"]: { backwardLink: link },
+            },
+    });
+    const result = await listMessages(fetch, session, "19:synthetic@thread.v2", 2);
+    expect(result.map((m) => (m as { id: string }).id)).toEqual(["300", "200"]);
+    // Stops once no unseen message can be newer than the two kept ones.
+    expect(requests).toHaveLength(2);
+  });
   it("rejects pagination links that leave the requested chat", async () => {
     const { fetch, requests } = teamsService({
       [messages]: () => ({

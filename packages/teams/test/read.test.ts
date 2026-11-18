@@ -146,7 +146,7 @@ describe("bounded read workflows", () => {
     expect(unread.chats.map((c) => c.id)).toEqual(["19:unread@thread.v2"]);
     expect(unread.truncated).toBe(false);
   });
-  it("bounds text, reports edits and deletions, and omits HTML and raw fields", () => {
+  it("bounds text, reports edits, and omits HTML and raw fields", () => {
     const result = compactMessages(
       [
         {
@@ -157,7 +157,7 @@ describe("bounded read workflows", () => {
           properties: { edittime: "1" },
           token: "synthetic-secret",
         },
-        { id: "1", content: "", composetime: "2030-01-01", properties: { deletetime: "1" } },
+        { id: "1", content: "plain", composetime: "2030-01-01" },
         { id: "0", content: "older", composetime: "2029-12-31" },
       ],
       2,
@@ -165,7 +165,6 @@ describe("bounded read workflows", () => {
     expect(result.messages.map((m) => m.id)).toEqual(["1", "2"]);
     expect(result.messages[1]).toMatchObject({ edited: true, textTruncated: true });
     expect(result.messages[1]?.text).toHaveLength(4000);
-    expect(result.messages[0]?.deleted).toBe(true);
     expect(result.truncated).toBe(true);
     expect(JSON.stringify(result)).not.toContain("synthetic-secret");
     expect(JSON.stringify(result)).not.toContain("<p>");

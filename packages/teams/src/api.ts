@@ -7,6 +7,7 @@ const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 const HTTP_NOT_FOUND = 404;
 const PAGE_SIZE = 100;
+const MIN_PAGE_SIZE = 50;
 const CHAT_PAGE_SIZE = 500;
 const MAX_PAGES = 10;
 const SYSTEM_MESSAGE = /^(?:ThreadActivity|Event|Control)\//u;
@@ -158,7 +159,13 @@ export async function listConversations(fetchImpl: Fetch, session: Session): Pro
   return array(body["conversations"]);
 }
 
-/** Newest first, user messages only; follows Teams' backward links on the same chat. */
+/**
+ * The newest `limit` messages by send time (newest first), without system or deleted messages.
+ *
+ * Teams returns messages by last-modified `version`, so an old message that was edited, deleted
+ * or reacted to comes first. A message's send time (`id`) never exceeds its version, so once
+ * `limit` kept messages were sent after the oldest version seen, no unseen message can be newer.
+ */
 export async function listMessages(
   fetchImpl: Fetch,
   session: Session,
@@ -166,23 +173,64 @@ export async function listMessages(
   limit: number,
 ): Promise<unknown[]> {
   const path = `/users/ME/conversations/${encodeURIComponent(chatId)}/messages`;
+  const pageSize = Math.min(PAGE_SIZE, Math.max(limit, MIN_PAGE_SIZE));
   let url: string | undefined =
-    `${session.messageApi}${path}?startTime=0&view=msnp24Equivalent&pageSize=${Math.min(limit, PAGE_SIZE)}`;
-  const messages: unknown[] = [];
-  for (let page = 0; url && messages.length < limit && page < MAX_PAGES; page += 1) {
+    `${session.messageApi}${path}?startTime=0&view=msnp24Equivalent&pageSize=${pageSize}`;
+  const kept: Sent[] = [];
+  let oldestVersion = Number.POSITIVE_INFINITY;
+  for (let page = 0; url && page < MAX_PAGES; page += 1) {
     const body = record(await get(fetchImpl, session, url));
     const fetched = array(body["messages"]);
-    messages.push(
-      ...fetched.filter((m) => !SYSTEM_MESSAGE.test(String(record(m)["messagetype"] ?? ""))),
-    );
-    const next = record(body["_metadata"])["backwardLink"];
-    url = fetched.length > 0 && typeof next === "string" && next ? next : undefined;
-    // get() pins the origin; the path must stay on this chat (Teams may encode the ID differently).
-    if (url && decodedPath(url) !== decodedPath(`${session.messageApi}${path}`)) {
-      throw new ClerkhandError("teams_schema", "Teams returned an unexpected pagination link.");
+    oldestVersion = Math.min(oldestVersion, keepReadable(fetched, kept));
+    if (countSentAfter(kept, oldestVersion) >= limit) {
+      break;
+    }
+    url = nextPage(body, fetched, `${session.messageApi}${path}`);
+  }
+  return kept
+    .sort((a, b) => b.id - a.id)
+    .slice(0, limit)
+    .map((m) => m.message);
+}
+
+interface Sent {
+  id: number;
+  message: unknown;
+}
+
+/** Adds user messages that are not deleted to `kept`; returns the page's oldest version. */
+function keepReadable(fetched: unknown[], kept: Sent[]): number {
+  let oldest = Number.POSITIVE_INFINITY;
+  for (const message of fetched) {
+    const m = record(message);
+    const id = Number(m["id"]);
+    oldest = Math.min(oldest, Number(m["version"]) || id);
+    const system = SYSTEM_MESSAGE.test(String(m["messagetype"] ?? ""));
+    if (Number.isFinite(id) && !system && !record(m["properties"])["deletetime"]) {
+      kept.push({ id, message });
     }
   }
-  return messages.slice(0, limit);
+  return oldest;
+}
+
+function countSentAfter(kept: Sent[], time: number): number {
+  let count = 0;
+  for (const m of kept) {
+    count += m.id > time ? 1 : 0;
+  }
+  return count;
+}
+
+/** get() pins the origin; the link must stay on this chat (Teams may encode the ID differently). */
+function nextPage(body: Record<string, unknown>, fetched: unknown[], chatUrl: string) {
+  const next = record(body["_metadata"])["backwardLink"];
+  if (fetched.length === 0 || typeof next !== "string" || !next) {
+    return;
+  }
+  if (decodedPath(next) !== decodedPath(chatUrl)) {
+    throw new ClerkhandError("teams_schema", "Teams returned an unexpected pagination link.");
+  }
+  return next;
 }
 
 function displayName(properties: Record<string, unknown>): string {
