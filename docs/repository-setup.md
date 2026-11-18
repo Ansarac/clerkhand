@@ -22,9 +22,9 @@ Target: default branch.
 
 ## Ruleset: release tags
 
-Target: tags matching `@clerkhand/*@*`.
+Target: tags matching `v*`.
 
-- Restrict creations, updates and deletions (bypass: the release workflow only, once it exists)
+- Restrict creations, updates and deletions. Bypass: the **GitHub Actions** app (always), so the release workflow can create release tags.
 
 ## Actions
 

@@ -1,8 +1,15 @@
 {
   "name": "@clerkhand/core",
   "version": "0.0.0",
-  "description": "Shared driver, session and safety layer for clerkhand tools.",
+  "description": "Shared browser driver, local paths, JSON output and agent setup for clerkhand tools.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ansarac/clerkhand.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/Ansarac/clerkhand#readme",
+  "bugs": "https://github.com/Ansarac/clerkhand/issues",
   "type": "module",
   "exports": {
     ".": {

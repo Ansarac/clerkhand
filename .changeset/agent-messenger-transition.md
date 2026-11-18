@@ -1,5 +1,4 @@
 ---
-
 "@clerkhand/core": minor
 "@clerkhand/teams": minor
 ---

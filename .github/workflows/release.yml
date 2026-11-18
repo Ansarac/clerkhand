@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # While changesets are pending: open or update the "version packages" PR.
+  # With none pending: report whether the current version still needs a GitHub release.
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      pending: ${{ steps.changesets.outputs.has-changesets }}
+      unreleased: ${{ steps.check.outputs.unreleased }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: changesets
+        uses: changesets/action@v2
+        with:
+          version-script: pnpm changeset version
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
+      - id: check
+        if: steps.changesets.outputs.has-changesets == 'false'
+        run: node scripts/release.mjs check
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # Builds the tarballs, attests their provenance and publishes the GitHub release `v<version>`.
+  # The `release` environment can require a manual approval.
+  release:
+    needs: version
+    if: needs.version.outputs.pending == 'false' && needs.version.outputs.unreleased == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write # the tag and release
+      id-token: write # provenance signing
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: node scripts/release.mjs pack
+      - run: node scripts/release.mjs notes
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*.tgz
+      - name: Publish the GitHub release
+        run: |
+          version=$(node -p "require('./packages/teams/package.json').version")
+          gh release create "v$version" release/*.tgz \
+            --title "v$version" --notes-file release/notes.md --target "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}

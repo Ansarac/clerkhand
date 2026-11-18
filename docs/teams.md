@@ -1,18 +1,16 @@
 # Teams
 
-Requires Node 26, pnpm 12, Microsoft Edge, and a work-account Teams web login permitted by your tenant. Use `CLERKHAND_BROWSER` for another installed Chromium executable. Normal login, MFA and conditional access are handled in the browser.
+Requires Node 26, Microsoft Edge, and a work-account Teams web login permitted by your tenant. Use `CLERKHAND_BROWSER` for another installed Chromium executable. Normal login, MFA and conditional access are handled in the browser.
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build
-node packages/teams/dist/cli.js auth refresh --headed --wait 180
-node packages/teams/dist/cli.js auth status
-node packages/teams/dist/cli.js whoami
-node packages/teams/dist/cli.js chats --limit 20
-node packages/teams/dist/cli.js read self --last 20
+npm install -g https://github.com/Ansarac/clerkhand/releases/latest/download/clerkhand-teams.tgz
+clerkhand-teams setup claude --write
+clerkhand-teams auth refresh --headed --wait 180
+clerkhand-teams whoami
+clerkhand-teams chats --unread
 ```
 
-After installing the package CLI, replace `node packages/teams/dist/cli.js` with `clerkhand-teams`.
+Run the same install command to upgrade. From a source checkout, use `node packages/teams/dist/cli.js` after `pnpm install --frozen-lockfile && pnpm build` (see [development](development.md)).
 
 | Command                                     | Behavior                                                                                                                         |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
