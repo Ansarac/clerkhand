@@ -24,7 +24,7 @@ Target: default branch.
 
 Target: tags matching `v*`.
 
-- Restrict creations, updates and deletions. Bypass: the **GitHub Actions** app (always), so the release workflow can create release tags.
+- Restrict updates and deletions, no bypass. Creations stay allowed so the release workflow can create tags (a personal-account repository cannot list the GitHub Actions app as a bypass actor).
 
 ## Actions
 
