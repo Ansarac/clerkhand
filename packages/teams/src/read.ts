@@ -104,6 +104,23 @@ export function fromUser(message: Record<string, unknown>, userId: string): bool
     .endsWith(`8:orgid:${userId}`);
 }
 
+/** People who wrote the given raw messages, with their Teams IDs, for mentions. */
+export function authors(messages: unknown[]): { name: string; mri: string }[] {
+  const people = new Map<string, string>();
+  for (const item of messages) {
+    const message = record(item);
+    const mri =
+      String(message["from"] ?? "")
+        .split("/")
+        .pop() ?? "";
+    const name = text(message["imdisplayname"]);
+    if (mri.startsWith("8:orgid:") && name) {
+      people.set(mri, name);
+    }
+  }
+  return [...people].map(([mri, name]) => ({ name, mri }));
+}
+
 /** Display name of a message's sender, or "me" for the signed-in user. */
 export function senderName(message: Record<string, unknown>, userId: string): string {
   return fromUser(message, userId) ? "me" : text(message["imdisplayname"]);

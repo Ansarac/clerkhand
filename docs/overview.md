@@ -10,7 +10,7 @@ flowchart LR
   T --> W[Teams chat service: GET only]
 ```
 
-`@clerkhand/core` provides the browser driver, platform paths, JSON output and agent setup. `@clerkhand/teams` captures normal browser authentication, verifies it and reads chats with a small built-in client. That client talks only to the regional Teams chat service (`{amer,emea,apac}.ng.msg.teams.microsoft.com/v1`) and has no runtime dependency beyond core. Its only write is a plain-text POST to a chat (self, 1:1, group or meeting); channel IDs are refused in code.
+`@clerkhand/core` provides the browser driver, platform paths, JSON output and agent setup. `@clerkhand/teams` captures normal browser authentication, verifies it and reads chats with a small built-in client. That client talks only to the regional Teams chat service (`{amer,emea,apac}.ng.msg.teams.microsoft.com/v1`) and has no runtime dependency beyond core. Its only write is a message POST to a chat (self, 1:1, group or meeting), formatted from a small Markdown subset with optional mentions; channel IDs are refused in code.
 
 Reads normally start no browser. When credentials are missing, within five minutes of expiry, or rejected by the service, clerkhand refreshes on demand. A command performs at most one refresh and one authentication-error retry. There is no background service.
 
