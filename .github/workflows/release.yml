@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   # While changesets are pending: open or update the "version packages" PR.
-  # With none pending: report whether a merged version is still unpublished.
+  # With none pending: report whether the current version still needs a GitHub release.
   version:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -22,8 +22,8 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      pending: ${{ steps.changesets.outputs.hasChangesets }}
-      unpublished: ${{ steps.check.outputs.unpublished }}
+      pending: ${{ steps.changesets.outputs.has-changesets }}
+      unreleased: ${{ steps.check.outputs.unreleased }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -33,28 +33,29 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          version: pnpm changeset version
-          title: "chore: version packages"
-          commit: "chore: version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm changeset version
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
       - id: check
-        if: steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.changesets.outputs.has-changesets == 'false'
         run: node scripts/release.mjs check
+        env:
+          GH_TOKEN: ${{ github.token }}
 
-  # Publishes to npm with trusted publishing (OIDC, automatic provenance) and creates
-  # GitHub releases. The `npm` environment can require a manual approval.
-  publish:
+  # Builds the tarballs, attests their provenance and publishes the GitHub release `v<version>`.
+  # The `release` environment can require a manual approval.
+  release:
     needs: version
-    if: needs.version.outputs.pending == 'false' && needs.version.outputs.unpublished == 'true'
+    if: needs.version.outputs.pending == 'false' && needs.version.outputs.unreleased == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: npm
+    environment: release
     permissions:
-      contents: write # tags and GitHub releases
-      id-token: write # npm trusted publishing
+      contents: write # the tag and release
+      id-token: write # provenance signing
+      attestations: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -64,13 +65,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
-      - run: node scripts/release.mjs publish
+      - run: node scripts/release.mjs pack
+      - run: node scripts/release.mjs notes
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*.tgz
+      - name: Publish the GitHub release
+        run: |
+          version=$(node -p "require('./packages/teams/package.json').version")
+          gh release create "v$version" release/*.tgz \
+            --title "v$version" --notes-file release/notes.md --target "$GITHUB_SHA"
         env:
           GH_TOKEN: ${{ github.token }}
-          # Only for the very first publish, before npm allows a trusted publisher; delete the
-          # secret afterwards and OIDC is used.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

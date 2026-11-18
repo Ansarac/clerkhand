@@ -1,20 +1,21 @@
 # clerkhand
 
-Teams authentication tools and read workflows for AI agents. A dedicated browser profile handles normal sign-in; a small built-in GET-only client reads chat data from the Teams chat service. clerkhand keeps credentials local and returns bounded JSON to the agent.
+Microsoft Teams tools for AI agents. A dedicated browser profile handles normal sign-in; a small built-in client reads chats and sends messages only after the user confirms recipient and text. clerkhand keeps credentials local and returns bounded JSON to the agent.
 
-> Unreleased: authentication, reads, and confirmed sending to chats (formatting and mentions). Channels, editing, deleting and server search are not available.
+> Early version, released on GitHub only (not on npm). Channels, editing, deleting and server search are not available.
 
 | Package                              | Purpose                                                         |
 | ------------------------------------ | --------------------------------------------------------------- |
-| [`@clerkhand/teams`](packages/teams) | `clerkhand-teams`: authentication, chat list and recent history |
+| [`@clerkhand/teams`](packages/teams) | `clerkhand-teams`: sign-in, chats, unread, find, confirmed send |
 | [`@clerkhand/core`](packages/core)   | Browser subprocess, local paths, JSON output and agent setup    |
 
+Requires Node 26 and Microsoft Edge. Install or upgrade from the latest GitHub release:
+
 ```sh
-pnpm install --frozen-lockfile
-pnpm build
-node packages/teams/dist/cli.js auth refresh --headed --wait 180
-node packages/teams/dist/cli.js chats --limit 20
-node packages/teams/dist/cli.js read self --last 20
+npm install -g https://github.com/Ansarac/clerkhand/releases/latest/download/clerkhand-teams.tgz
+clerkhand-teams setup claude --write            # Claude Code skill and permission rules
+clerkhand-teams auth refresh --headed --wait 180
+clerkhand-teams chats --unread
 ```
 
 Complete normal Teams sign-in in the browser window. Credentials never need to be copied into a command or given to an agent. Normal tenant controls still apply.

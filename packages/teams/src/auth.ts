@@ -23,7 +23,7 @@ const TEAMS_HOSTS = new Set(["teams.microsoft.com", "teams.cloud.microsoft"]);
 const POLL_MS = 1000;
 const HTTP_OK = 200;
 const BEARER = /^Bearer\s+(?<token>.+)$/iu;
-const CAPABILITIES = { chats: true, history: true, search: false, send: "self" };
+const CAPABILITIES = { chats: true, history: true, unread: true, search: false, send: true };
 
 export interface AuthOptions {
   headed: boolean;

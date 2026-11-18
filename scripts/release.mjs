@@ -1,41 +1,52 @@
-// Publishes workspace packages whose version is not on npm yet, then creates their GitHub
-// releases. Run by .github/workflows/release.yml; `check` only reports whether anything is
-// unpublished. Packages are published in dependency order (core before tools).
+// Builds the GitHub release for the current version. Run by .github/workflows/release.yml.
+//   check  - reports whether the release tag `v<version>` exists yet
+//   pack   - writes the release tarballs to `release/`
+//   notes  - writes the release notes to `release/notes.md`
+// All packages share one version (changesets "fixed" group). The teams tarball depends on the
+// core tarball of the same release by URL, so one `npm install -g <url>` installs both.
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 
-const ORDER = ["core", "teams"];
-const [, , mode] = process.argv;
+const REPOSITORY = "Ansarac/clerkhand";
+const OUT = "release";
 const NEXT_SECTION = /^## /mu;
+const [, , mode] = process.argv;
+
+const manifest = (name) => JSON.parse(readFileSync(join("packages", name, "package.json"), "utf8"));
+const { version } = manifest("teams");
+const tag = `v${version}`;
 
 function run(program, args, options = {}) {
   return execFileSync(program, args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "inherit"],
+    // pnpm and gh are .cmd shims on Windows (local dry runs); arguments are fixed, not user input.
+    shell: process.platform === "win32",
     ...options,
   });
 }
 
-function published(name, version) {
+function released() {
   try {
-    return run("npm", ["view", `${name}@${version}`, "version"]).trim() === version;
+    run("gh", ["release", "view", tag, "--repo", REPOSITORY, "--json", "tagName"]);
+    return true;
   } catch {
-    return false; // E404: the package or this version does not exist yet.
+    return false;
   }
 }
 
-/** The CHANGELOG.md section changesets wrote for `version`. */
-function notes(dir, version) {
+/** The CHANGELOG.md section changesets wrote for this version. */
+function section(name) {
   try {
-    const changelog = readFileSync(join(dir, "CHANGELOG.md"), "utf8");
-    const start = changelog.indexOf(`## ${version}\n`);
+    const changelog = readFileSync(join("packages", name, "CHANGELOG.md"), "utf8");
+    const heading = `## ${version}\n`;
+    const start = changelog.indexOf(heading);
     if (start === -1) {
       return "";
     }
-    const rest = changelog.slice(start + `## ${version}\n`.length);
+    const rest = changelog.slice(start + heading.length);
     const end = rest.search(NEXT_SECTION);
     return (end === -1 ? rest : rest.slice(0, end)).trim();
   } catch {
@@ -43,54 +54,53 @@ function notes(dir, version) {
   }
 }
 
-const packages = readdirSync("packages")
-  .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))
-  .map((dir) => ({
-    dir: join("packages", dir),
-    ...JSON.parse(readFileSync(join("packages", dir, "package.json"), "utf8")),
-  }))
-  .filter((pkg) => !pkg.private);
-const pending = packages.filter((pkg) => !published(pkg.name, pkg.version));
+if (manifest("core").version !== version) {
+  throw new Error("core and teams must share one version (changesets fixed group).");
+}
 
 if (mode === "check") {
-  console.log(
-    pending.length > 0
-      ? `unpublished: ${pending.map((p) => `${p.name}@${p.version}`).join(", ")}`
-      : "all published",
-  );
+  const exists = released();
+  console.log(exists ? `${tag} is released` : `${tag} is not released yet`);
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `unpublished=${pending.length > 0}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `unreleased=${!exists}\n`);
   }
-} else if (mode === "publish") {
-  const out = mkdtempSync(join(tmpdir(), "clerkhand-release-"));
-  for (const pkg of pending) {
-    // pnpm pack replaces workspace: ranges with real versions; npm publish uses trusted publishing.
-    run("pnpm", ["pack", "--pack-destination", out], { cwd: pkg.dir });
-    const tarball = readdirSync(out).find(
-      (file) => file.endsWith(`-${pkg.version}.tgz`) && file.includes(pkg.name.split("/")[1]),
-    );
-    run("npm", ["publish", join(out, tarball), "--access", "public"], { stdio: "inherit" });
-    const tag = `${pkg.name}@${pkg.version}`;
-    const notesFile = join(out, `${pkg.name.split("/")[1]}-notes.md`);
-    writeFileSync(notesFile, notes(pkg.dir, pkg.version) || `Release ${tag}.`);
-    run(
-      "gh",
-      [
-        "release",
-        "create",
-        tag,
-        "--title",
-        tag,
-        "--notes-file",
-        notesFile,
-        "--target",
-        process.env.GITHUB_SHA ?? "main",
-      ],
-      { stdio: "inherit" },
-    );
-    console.log(`published ${tag}`);
-  }
+} else if (mode === "pack") {
+  mkdirSync(OUT, { recursive: true });
+  const destination = join("..", "..", OUT);
+  const coreFile = `clerkhand-core-${version}.tgz`;
+  run("pnpm", ["pack", "--pack-destination", destination], { cwd: join("packages", "core") });
+  // Point teams at the core tarball of this same release instead of a registry version.
+  // This edits the CI checkout only.
+  const teams = manifest("teams");
+  // CLERKHAND_CORE_URL lets a local dry run point at a file: URL instead.
+  teams.dependencies["@clerkhand/core"] =
+    process.env.CLERKHAND_CORE_URL ??
+    `https://github.com/${REPOSITORY}/releases/download/${tag}/${coreFile}`;
+  writeFileSync(join("packages", "teams", "package.json"), `${JSON.stringify(teams, null, 2)}\n`);
+  run("pnpm", ["pack", "--pack-destination", destination], { cwd: join("packages", "teams") });
+  // A stable name, so `releases/latest/download/clerkhand-teams.tgz` always installs the newest.
+  copyFileSync(join(OUT, `clerkhand-teams-${version}.tgz`), join(OUT, "clerkhand-teams.tgz"));
+  console.log(`packed ${tag}`);
+} else if (mode === "notes") {
+  mkdirSync(OUT, { recursive: true });
+  const asset = `clerkhand-teams-${version}.tgz`;
+  const body = [
+    "## Install",
+    "",
+    "```sh",
+    `npm install -g https://github.com/${REPOSITORY}/releases/download/${tag}/${asset}`,
+    "clerkhand-teams setup claude --write",
+    "```",
+    "",
+    `Verify a downloaded tarball: \`gh attestation verify ${asset} --repo ${REPOSITORY}\``,
+    "",
+    "## Changes",
+    "",
+    section("teams") || "See the commit history.",
+  ].join("\n");
+  writeFileSync(join(OUT, "notes.md"), `${body}\n`);
+  console.log(`wrote notes for ${tag}`);
 } else {
-  console.error("Usage: node scripts/release.mjs check|publish");
+  console.error("Usage: node scripts/release.mjs check|pack|notes");
   process.exitCode = 2;
 }

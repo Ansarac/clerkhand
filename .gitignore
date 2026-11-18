@@ -25,3 +25,6 @@ coverage/
 
 # Installed by `clerkhand-teams setup claude`; the source is packages/teams/skills/
 .claude/skills/clerkhand-teams/
+
+# Release tarballs built by scripts/release.mjs
+release/

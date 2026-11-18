@@ -6,7 +6,7 @@
   "commit": false,
   "format": false,
   "updateInternalDependencies": "patch",
-  "fixed": [],
+  "fixed": [["@clerkhand/core", "@clerkhand/teams"]],
   "linked": [],
   "ignore": []
 }
