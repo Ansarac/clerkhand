@@ -1,6 +1,6 @@
 {
   "name": "@clerkhand/teams",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Microsoft Teams for AI agents: browser sign-in, chat reading, unread detection and confirmed sending.",
   "license": "MIT",
   "repository": {

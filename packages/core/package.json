@@ -1,6 +1,6 @@
 {
   "name": "@clerkhand/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Shared browser driver, local paths, JSON output and agent setup for clerkhand tools.",
   "license": "MIT",
   "repository": {
