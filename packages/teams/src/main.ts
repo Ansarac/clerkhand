@@ -12,7 +12,7 @@ const USAGE = `Usage: clerkhand-teams <command> [options]
   status                         Alias for auth status
   whoami                         Verify identity with Teams
   chats [--limit N] [--unread]    List chats (default 20, max 200)
-  read <chat-id|self> [--last N]   Read recent messages (default 20, max 200)
+  read <chat-id|self> [--last N] [--unread]   Recent (or only unread) messages, max 200
   find <name>                     Find chats by group name or by who wrote in them
   draft <chat-id|self> --text T   Preview a message: recipients, recent messages, hash
   send <chat-id|self> --text T --confirm H   Send exactly that drafted message

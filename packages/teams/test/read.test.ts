@@ -30,6 +30,33 @@ describe("bounded read workflows", () => {
     expect(body.data.messages[0]).toMatchObject({ text: "Synthetic message", edited: false });
     expect(calls).toEqual([]);
   });
+  it("reads only messages after the read marker, newest kept when over the limit", async () => {
+    const { ctx } = context({ credential: true });
+    const chat = "19:synthetic@thread.v2";
+    const message = (id: string) => ({ id, version: id, messagetype: "Text", content: `m${id}` });
+    ctx.fetch = teamsService({
+      "/v1/users/ME/conversations": () => ({
+        conversations: [
+          {
+            id: chat,
+            threadProperties: { threadType: "chat" },
+            properties: { consumptionhorizon: "200;200;0" },
+          },
+          { id: "48:notes", threadProperties: {} },
+        ],
+      }),
+      [`/v1/users/ME/conversations/${encodeURIComponent(chat)}/messages`]: () => ({
+        messages: ["400", "300", "200", "100"].map(message),
+      }),
+    }).fetch;
+    const all = await run(["read", chat, "--unread"], ctx);
+    expect(all.body.data.messages.map((m: { text: string }) => m.text)).toEqual(["m300", "m400"]);
+    expect(all.body.data).toMatchObject({ unreadOnly: true, truncated: false });
+    const capped = await run(["read", chat, "--unread", "--last", "1"], ctx);
+    expect(capped.body.data.messages.map((m: { text: string }) => m.text)).toEqual(["m400"]);
+    expect(capped.body.data.truncated).toBe(true);
+    expect((await run(["read", "self", "--unread"], ctx)).body.error.code).toBe("unread_unknown");
+  });
   it("accepts every chat ID kind returned by chats", async () => {
     const { ctx, requests } = context({ credential: true });
     for (const id of ["19:a_b@unq.gbl.spaces", "19:synthetic@thread.v2"]) {
