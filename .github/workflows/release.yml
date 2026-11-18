@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # While changesets are pending: open or update the "version packages" PR.
+  # With none pending: report whether a merged version is still unpublished.
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      pending: ${{ steps.changesets.outputs.hasChangesets }}
+      unpublished: ${{ steps.check.outputs.unpublished }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: check
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: node scripts/release.mjs check
+
+  # Publishes to npm with trusted publishing (OIDC, automatic provenance) and creates
+  # GitHub releases. The `npm` environment can require a manual approval.
+  publish:
+    needs: version
+    if: needs.version.outputs.pending == 'false' && needs.version.outputs.unpublished == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+    permissions:
+      contents: write # tags and GitHub releases
+      id-token: write # npm trusted publishing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: node scripts/release.mjs publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Only for the very first publish, before npm allows a trusted publisher; delete the
+          # secret afterwards and OIDC is used.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

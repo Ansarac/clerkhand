@@ -24,7 +24,7 @@ Target: default branch.
 
 Target: tags matching `@clerkhand/*@*`.
 
-- Restrict creations, updates and deletions (bypass: the release workflow only, once it exists)
+- Restrict creations, updates and deletions. Bypass: the **GitHub Actions** app (always), so the release workflow can create release tags.
 
 ## Actions
 

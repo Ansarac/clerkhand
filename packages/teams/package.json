@@ -1,8 +1,15 @@
 {
   "name": "@clerkhand/teams",
   "version": "0.0.0",
-  "description": "Teams browser authentication and bounded, read-only chat workflows for AI agents.",
+  "description": "Microsoft Teams for AI agents: browser sign-in, chat reading, unread detection and confirmed sending.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ansarac/clerkhand.git",
+    "directory": "packages/teams"
+  },
+  "homepage": "https://github.com/Ansarac/clerkhand#readme",
+  "bugs": "https://github.com/Ansarac/clerkhand/issues",
   "type": "module",
   "bin": {
     "clerkhand-teams": "./dist/cli.js"

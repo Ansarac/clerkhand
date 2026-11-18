@@ -107,6 +107,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          // CI scripts: printing progress and reading the Actions environment is their job.
+          "suspicious": { "noConsole": "off" },
+          "style": { "noProcessEnv": "off" }
+        }
+      }
     }
   ]
 }
