@@ -72,37 +72,46 @@ describe("bounded read workflows", () => {
     });
     expect(calls).toEqual([]);
   });
-  it("lists only self, 1:1 and group chats, omitting raw fields", () => {
+  it("lists self, 1:1, group and meeting chats but not channels, omitting raw fields", () => {
     const result = compactChats(
       [
         { id: "48:notes", threadProperties: {}, lastMessage: { content: "<p>Hi&amp;bye</p>" } },
-        { id: "19:a_b@unq.gbl.spaces", threadProperties: { productThreadType: "OneToOneChat" } },
+        {
+          id: "19:a_b@unq.gbl.spaces",
+          threadProperties: { productThreadType: "OneToOneChat" },
+          lastMessage: { imdisplayname: "Synthetic Person", token: "synthetic-secret" },
+        },
         { id: "19:g@thread.v2", threadProperties: { threadType: "chat", topic: "Synthetic" } },
         { id: "19:channel@thread.tacv2", threadProperties: { groupId: "synthetic-team" } },
-        { id: "19:meeting@thread.v2", threadProperties: { threadType: "meeting" } },
+        {
+          id: "19:meeting_x@thread.v2",
+          threadProperties: { threadType: "meeting", topic: "Sync" },
+        },
+        { id: "48:notifications", threadProperties: { threadType: "streamofnotifications" } },
       ],
-      2,
+      10,
       { userId: USER_ID },
     );
-    expect(result.chats).toEqual([
-      {
-        id: "48:notes",
-        kind: "self",
-        name: "",
-        lastMessage: "Hi&bye",
-        lastMessageAt: "",
-        unread: false,
-      },
-      {
-        id: "19:a_b@unq.gbl.spaces",
-        kind: "oneOnOne",
-        name: "",
-        lastMessage: "",
-        lastMessageAt: "",
-        unread: false,
-      },
+    expect(result.chats.map((c) => [c.id, c.kind])).toEqual([
+      ["48:notes", "self"],
+      ["19:a_b@unq.gbl.spaces", "oneOnOne"],
+      ["19:g@thread.v2", "group"],
+      ["19:meeting_x@thread.v2", "meeting"],
     ]);
-    expect(result.truncated).toBe(true);
+    expect(result.chats[0]).toEqual({
+      id: "48:notes",
+      kind: "self",
+      name: "",
+      lastMessage: "Hi&bye",
+      lastMessageAt: "",
+      lastSender: "",
+      unread: false,
+    });
+    expect(result.chats[1]?.lastSender).toBe("Synthetic Person");
+    expect(JSON.stringify(result)).not.toContain("synthetic-secret");
+    expect(
+      compactChats([{ id: "48:notes" }, { id: "48:notes" }], 1, { userId: USER_ID }).truncated,
+    ).toBe(true);
   });
   it("marks chats unread from the read marker, ignoring the user's own messages", () => {
     const chat = (
@@ -137,7 +146,7 @@ describe("bounded read workflows", () => {
     expect(unread.chats.map((c) => c.id)).toEqual(["19:unread@thread.v2"]);
     expect(unread.truncated).toBe(false);
   });
-  it("bounds text, reports edits and deletions, and omits HTML and raw fields", () => {
+  it("bounds text, reports edits, and omits HTML and raw fields", () => {
     const result = compactMessages(
       [
         {
@@ -148,7 +157,7 @@ describe("bounded read workflows", () => {
           properties: { edittime: "1" },
           token: "synthetic-secret",
         },
-        { id: "1", content: "", composetime: "2030-01-01", properties: { deletetime: "1" } },
+        { id: "1", content: "plain", composetime: "2030-01-01" },
         { id: "0", content: "older", composetime: "2029-12-31" },
       ],
       2,
@@ -156,7 +165,6 @@ describe("bounded read workflows", () => {
     expect(result.messages.map((m) => m.id)).toEqual(["1", "2"]);
     expect(result.messages[1]).toMatchObject({ edited: true, textTruncated: true });
     expect(result.messages[1]?.text).toHaveLength(4000);
-    expect(result.messages[0]?.deleted).toBe(true);
     expect(result.truncated).toBe(true);
     expect(JSON.stringify(result)).not.toContain("synthetic-secret");
     expect(JSON.stringify(result)).not.toContain("<p>");

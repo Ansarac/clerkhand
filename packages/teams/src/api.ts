@@ -7,6 +7,7 @@ const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 const HTTP_NOT_FOUND = 404;
 const PAGE_SIZE = 100;
+const MIN_PAGE_SIZE = 50;
 const CHAT_PAGE_SIZE = 500;
 const MAX_PAGES = 10;
 const SYSTEM_MESSAGE = /^(?:ThreadActivity|Event|Control)\//u;
@@ -19,12 +20,29 @@ export interface Session {
 
 export const SELF_CHAT_ID = "48:notes";
 const MAX_CLIENT_ID = 1e15;
+/** Self chat, 1:1 chats and group/meeting chats. Channels (`@thread.tacv2`) are refused. */
+const CHAT_ID = /^(?:48:notes|19:[\w.-]+@unq\.gbl\.spaces|19:[\w.-]+@thread\.v2)$/u;
+
+export function isSendableChatId(chatId: string): boolean {
+  return CHAT_ID.test(chatId);
+}
 
 /**
- * The only write: a plain-text message to the user's own self-chat. The target is fixed here,
- * not passed in. Never retried; a timeout leaves the outcome unknown.
+ * The only write: a plain-text message to one chat. Never retried here; a request that does not
+ * complete leaves the outcome unknown.
  */
-export async function sendToSelf(fetchImpl: Fetch, session: Session, text: string) {
+export async function sendMessage(
+  fetchImpl: Fetch,
+  session: Session,
+  chatId: string,
+  text: string,
+) {
+  if (!isSendableChatId(chatId)) {
+    throw new ClerkhandError(
+      "send_target_disabled",
+      "Only chats can receive messages, not channels.",
+    );
+  }
   if (!isMessageApi(session.messageApi)) {
     throw new ClerkhandError("teams_error", "Refused a request outside the Teams chat service.");
   }
@@ -32,7 +50,7 @@ export async function sendToSelf(fetchImpl: Fetch, session: Session, text: strin
   let response: Response;
   try {
     response = await fetchImpl(
-      `${session.messageApi}/users/ME/conversations/${encodeURIComponent(SELF_CHAT_ID)}/messages`,
+      `${session.messageApi}/users/ME/conversations/${encodeURIComponent(chatId)}/messages`,
       {
         method: "POST",
         headers: { ["X-Skypetoken"]: session.token, ["content-type"]: "application/json" },
@@ -50,7 +68,7 @@ export async function sendToSelf(fetchImpl: Fetch, session: Session, text: strin
     // biome-ignore lint/style/useErrorCause: network errors can echo request headers.
     throw new ClerkhandError(
       "send_unconfirmed",
-      "The send request did not complete; the message may or may not exist. Read the self-chat before trying again.",
+      "The send request did not complete; the message may or may not exist. Read the chat before trying again.",
     );
   }
   if (response.status === HTTP_UNAUTHORIZED) {
@@ -64,7 +82,7 @@ export async function sendToSelf(fetchImpl: Fetch, session: Session, text: strin
   const body = record(await response.json().catch(() => undefined));
   const arrival = body["OriginalArrivalTime"];
   return {
-    chatId: SELF_CHAT_ID,
+    chatId,
     clientMessageId,
     ...(typeof arrival === "number" ? { time: new Date(arrival).toISOString() } : {}),
   };
@@ -141,7 +159,13 @@ export async function listConversations(fetchImpl: Fetch, session: Session): Pro
   return array(body["conversations"]);
 }
 
-/** Newest first, user messages only; follows Teams' backward links on the same chat. */
+/**
+ * The newest `limit` messages by send time (newest first), without system or deleted messages.
+ *
+ * Teams returns messages by last-modified `version`, so an old message that was edited, deleted
+ * or reacted to comes first. A message's send time (`id`) never exceeds its version, so once
+ * `limit` kept messages were sent after the oldest version seen, no unseen message can be newer.
+ */
 export async function listMessages(
   fetchImpl: Fetch,
   session: Session,
@@ -149,23 +173,64 @@ export async function listMessages(
   limit: number,
 ): Promise<unknown[]> {
   const path = `/users/ME/conversations/${encodeURIComponent(chatId)}/messages`;
+  const pageSize = Math.min(PAGE_SIZE, Math.max(limit, MIN_PAGE_SIZE));
   let url: string | undefined =
-    `${session.messageApi}${path}?startTime=0&view=msnp24Equivalent&pageSize=${PAGE_SIZE}`;
-  const messages: unknown[] = [];
-  for (let page = 0; url && messages.length < limit && page < MAX_PAGES; page += 1) {
+    `${session.messageApi}${path}?startTime=0&view=msnp24Equivalent&pageSize=${pageSize}`;
+  const kept: Sent[] = [];
+  let oldestVersion = Number.POSITIVE_INFINITY;
+  for (let page = 0; url && page < MAX_PAGES; page += 1) {
     const body = record(await get(fetchImpl, session, url));
     const fetched = array(body["messages"]);
-    messages.push(
-      ...fetched.filter((m) => !SYSTEM_MESSAGE.test(String(record(m)["messagetype"] ?? ""))),
-    );
-    const next = record(body["_metadata"])["backwardLink"];
-    url = fetched.length > 0 && typeof next === "string" && next ? next : undefined;
-    // get() pins the origin; the path must stay on this chat (Teams may encode the ID differently).
-    if (url && decodedPath(url) !== decodedPath(`${session.messageApi}${path}`)) {
-      throw new ClerkhandError("teams_schema", "Teams returned an unexpected pagination link.");
+    oldestVersion = Math.min(oldestVersion, keepReadable(fetched, kept));
+    if (countSentAfter(kept, oldestVersion) >= limit) {
+      break;
+    }
+    url = nextPage(body, fetched, `${session.messageApi}${path}`);
+  }
+  return kept
+    .sort((a, b) => b.id - a.id)
+    .slice(0, limit)
+    .map((m) => m.message);
+}
+
+interface Sent {
+  id: number;
+  message: unknown;
+}
+
+/** Adds user messages that are not deleted to `kept`; returns the page's oldest version. */
+function keepReadable(fetched: unknown[], kept: Sent[]): number {
+  let oldest = Number.POSITIVE_INFINITY;
+  for (const message of fetched) {
+    const m = record(message);
+    const id = Number(m["id"]);
+    oldest = Math.min(oldest, Number(m["version"]) || id);
+    const system = SYSTEM_MESSAGE.test(String(m["messagetype"] ?? ""));
+    if (Number.isFinite(id) && !system && !record(m["properties"])["deletetime"]) {
+      kept.push({ id, message });
     }
   }
-  return messages.slice(0, limit);
+  return oldest;
+}
+
+function countSentAfter(kept: Sent[], time: number): number {
+  let count = 0;
+  for (const m of kept) {
+    count += m.id > time ? 1 : 0;
+  }
+  return count;
+}
+
+/** get() pins the origin; the link must stay on this chat (Teams may encode the ID differently). */
+function nextPage(body: Record<string, unknown>, fetched: unknown[], chatUrl: string) {
+  const next = record(body["_metadata"])["backwardLink"];
+  if (fetched.length === 0 || typeof next !== "string" || !next) {
+    return;
+  }
+  if (decodedPath(next) !== decodedPath(chatUrl)) {
+    throw new ClerkhandError("teams_schema", "Teams returned an unexpected pagination link.");
+  }
+  return next;
 }
 
 function displayName(properties: Record<string, unknown>): string {

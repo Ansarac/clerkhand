@@ -1,10 +1,55 @@
 import { describe, expect, it } from "vitest";
 import { draftHash } from "../src/commands/send.js";
 import { main } from "../src/main.js";
-import { context, teamsService } from "./helpers.js";
+import { context, MESSAGE_API, teamsService, USER_ID } from "./helpers.js";
 
-const SELF_PATH = "/v1/users/ME/conversations/48%3Anotes/messages";
+const ONE_ON_ONE = "19:synthetic-a_synthetic-b@unq.gbl.spaces";
+const CHAT_PATH = `/v1/users/ME/conversations/${encodeURIComponent(ONE_ON_ONE)}/messages`;
 const TEXT = "Synthetic test message";
+const ME = `${MESSAGE_API}/users/ME/contacts/8:orgid:${USER_ID}`;
+const THEM = `${MESSAGE_API}/users/ME/contacts/8:orgid:synthetic-other`;
+
+/** A 1:1 chat with one message from each side, the self-chat and a channel. */
+function chatService(extra: Record<string, (url: URL) => unknown> = {}) {
+  return teamsService({
+    "/v1/users/ME/conversations": () => ({
+      conversations: [
+        { id: "48:notes", threadProperties: {}, lastMessage: {} },
+        {
+          id: ONE_ON_ONE,
+          threadProperties: { productThreadType: "OneToOneChat" },
+          lastMessage: { id: "2", from: ME, imdisplayname: "Synthetic Me" },
+        },
+        {
+          id: "19:channel@thread.tacv2",
+          threadProperties: { groupId: "synthetic-team", topic: "Synthetic Person updates" },
+          lastMessage: {},
+        },
+      ],
+    }),
+    [CHAT_PATH]: () => ({
+      messages: [
+        {
+          id: "2",
+          messagetype: "Text",
+          content: "Latest",
+          from: ME,
+          imdisplayname: "Synthetic Me",
+          composetime: "2030-01-02",
+        },
+        {
+          id: "1",
+          messagetype: "Text",
+          content: "Hello",
+          from: THEM,
+          imdisplayname: "Synthetic Person",
+          composetime: "2030-01-01",
+        },
+      ],
+    }),
+    ...extra,
+  });
+}
 
 function run(argv: string[], ctx: ReturnType<typeof context>["ctx"]) {
   let output = "";
@@ -16,64 +61,95 @@ function run(argv: string[], ctx: ReturnType<typeof context>["ctx"]) {
 const posts = (requests: { init: RequestInit | undefined }[]) =>
   requests.filter((r) => r.init?.method === "POST");
 
-describe("self-chat send", () => {
-  it("drafts without any network or browser access", async () => {
-    const { ctx, calls, requests } = context({ credential: true });
-    const { code, body } = await run(["draft", "self", "--text", TEXT], ctx);
-    expect(code).toBe(0);
-    expect(body.data).toEqual({
-      chatId: "48:notes",
-      text: TEXT,
-      hash: draftHash("48:notes", TEXT),
-    });
-    expect(calls).toEqual([]);
-    expect(requests).toEqual([]);
+describe("find", () => {
+  it("finds a 1:1 chat by the other person's name even when the user wrote last", async () => {
+    const { ctx } = context({ credential: true });
+    const service = chatService();
+    ctx.fetch = service.fetch;
+    const { body } = await run(["find", "person", "synthetic"], ctx);
+    expect(body.data.matches).toEqual([
+      { id: ONE_ON_ONE, kind: "oneOnOne", name: "", with: "Synthetic Person", lastMessageAt: "" },
+    ]);
+    expect(posts(service.requests)).toEqual([]);
   });
-  it("sends exactly the confirmed text as plain text to the self-chat, once", async () => {
-    const { ctx, requests } = context({ credential: true });
-    ctx.fetch = teamsService({
-      [SELF_PATH]: () => ({ ["OriginalArrivalTime"]: Date.UTC(2030, 0, 1) }),
-    }).fetch;
-    const service = ctx.fetch;
-    ctx.fetch = (input, init) => {
-      requests.push({ url: String(input), init });
-      return service(input, init);
-    };
-    const hash = draftHash("48:notes", TEXT);
-    const { code, body } = await run(["send", "self", "--text", TEXT, "--confirm", hash], ctx);
+  it("never matches channels and returns nothing for unknown names", async () => {
+    const { ctx } = context({ credential: true });
+    ctx.fetch = chatService().fetch;
+    expect((await run(["find", "nobody"], ctx)).body.data.matches).toEqual([]);
+    expect((await run(["find", "updates"], ctx)).body.data.matches).toEqual([]);
+  });
+});
+
+describe("draft and send", () => {
+  it("drafts with the chat's participants and recent messages, sending nothing", async () => {
+    const { ctx } = context({ credential: true });
+    const service = chatService();
+    ctx.fetch = service.fetch;
+    const { code, body } = await run(["draft", ONE_ON_ONE, "--text", TEXT], ctx);
+    expect(code).toBe(0);
+    expect(body.data).toMatchObject({
+      chatId: ONE_ON_ONE,
+      kind: "oneOnOne",
+      participants: ["Synthetic Person"],
+      text: TEXT,
+      hash: draftHash(ONE_ON_ONE, TEXT),
+    });
+    expect(body.data.recent.map((m: { text: string }) => m.text)).toEqual(["Hello", "Latest"]);
+    expect(posts(service.requests)).toEqual([]);
+  });
+  it("sends exactly the confirmed text as plain text to the confirmed chat, once", async () => {
+    const { ctx } = context({ credential: true });
+    const service = chatService({
+      [CHAT_PATH]: () => ({ ["OriginalArrivalTime"]: Date.UTC(2030, 0, 1) }),
+    });
+    ctx.fetch = service.fetch;
+    const hash = draftHash(ONE_ON_ONE, TEXT);
+    const { code, body } = await run(["send", ONE_ON_ONE, "--text", TEXT, "--confirm", hash], ctx);
     expect(code).toBe(0);
     expect(body.data).toMatchObject({
       sent: true,
-      chatId: "48:notes",
+      chatId: ONE_ON_ONE,
       time: "2030-01-01T00:00:00.000Z",
     });
-    const sent = posts(requests);
+    const sent = posts(service.requests);
     expect(sent).toHaveLength(1);
-    expect(new URL(String(requests[0]?.url)).pathname).toBe(SELF_PATH);
+    expect(new URL(String(service.requests.at(-1)?.url)).pathname).toBe(CHAT_PATH);
     expect(JSON.parse(String(sent[0]?.init?.body))).toMatchObject({
       content: TEXT,
       messagetype: "Text",
     });
-    expect(String(sent[0]?.init?.body)).not.toContain("synthetic");
   });
-  it("refuses changed text, other targets and missing confirmation before any request", async () => {
+  it("binds the hash to the chat: a hash for one chat cannot send to another", async () => {
+    const { ctx, requests } = context({ credential: true });
+    const selfHash = draftHash("48:notes", TEXT);
+    const moved = await run(["send", ONE_ON_ONE, "--text", TEXT, "--confirm", selfHash], ctx);
+    expect(moved.body.error).toEqual({ code: "draft_changed", message: expect.any(String) });
+    const changed = await run(["send", "self", "--text", `${TEXT}!`, "--confirm", selfHash], ctx);
+    expect(changed.body.error.code).toBe("draft_changed");
+    expect(requests).toEqual([]);
+  });
+  it("refuses channels, display names and invalid input before any request", async () => {
     const { ctx, calls, requests } = context({ credential: true });
     const hash = draftHash("48:notes", TEXT);
-    const changed = await run(["send", "self", "--text", `${TEXT}!`, "--confirm", hash], ctx);
-    expect(changed.body.error).toEqual({
-      code: "draft_changed",
-      message: expect.any(String),
-    });
-    const other = await run(
-      ["send", "19:someone@unq.gbl.spaces", "--text", TEXT, "--confirm", hash],
-      ctx,
-    );
-    expect(other.body.error.code).toBe("send_target_disabled");
+    for (const chat of ["19:channel@thread.tacv2", "Synthetic Person"]) {
+      const sent = await run(["send", chat, "--text", TEXT, "--confirm", hash], ctx);
+      expect(sent.body.error.code).toBe("send_target_disabled");
+      const drafted = await run(["draft", chat, "--text", TEXT], ctx);
+      expect(drafted.body.error.code).toBe("send_target_disabled");
+    }
     expect((await run(["send", "self", "--text", TEXT], ctx)).code).toBe(2);
     expect((await run(["draft", "self", "--text", "  "], ctx)).code).toBe(2);
     expect((await run(["draft", "self", "--text", "x".repeat(4001)], ctx)).code).toBe(2);
     expect(calls).toEqual([]);
     expect(requests).toEqual([]);
+  });
+  it("refuses to draft for a chat ID that is not in the user's chat list", async () => {
+    const { ctx } = context({ credential: true });
+    const service = chatService();
+    ctx.fetch = service.fetch;
+    const drafted = await run(["draft", "19:not-mine@thread.v2", "--text", TEXT], ctx);
+    expect(drafted.body.error.code).toBe("chat_not_found");
+    expect(posts(service.requests)).toEqual([]);
   });
   it("never retries when the outcome of a send is unknown", async () => {
     const { ctx } = context({ credential: true });

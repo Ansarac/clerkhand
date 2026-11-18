@@ -53,13 +53,16 @@ function text(value: unknown, max = MAX_FIELD): string {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
-/** Self chat ("48:notes"), 1:1 and group chats; team channels and other thread types are skipped. */
+/** Self chat ("48:notes"), 1:1, group and meeting chats; channels and notification streams are skipped. */
 export function chatKind(id: string, properties: Record<string, unknown>): string | undefined {
   if (properties["groupId"]) {
     return undefined;
   }
   if (id === "48:notes" || properties["threadType"] === "streamofnotes") {
     return "self";
+  }
+  if (properties["threadType"] === "meeting") {
+    return "meeting";
   }
   if (properties["threadType"] && properties["threadType"] !== "chat") {
     return undefined;
@@ -80,16 +83,24 @@ export function isUnread(conversation: Record<string, unknown>, userId: string):
   if (!Number.isSafeInteger(lastId)) {
     return false;
   }
-  if (
-    String(last["from"] ?? "")
-      .toLowerCase()
-      .endsWith(`8:orgid:${userId}`)
-  ) {
+  if (fromUser(last, userId)) {
     return false;
   }
   const horizon = record(conversation["properties"])["consumptionhorizon"];
   const readId = typeof horizon === "string" ? Number(horizon.split(";")[0]) : Number.NaN;
   return Number.isSafeInteger(readId) ? lastId > readId : null;
+}
+
+/** Whether a raw Teams message was sent by the signed-in user. */
+export function fromUser(message: Record<string, unknown>, userId: string): boolean {
+  return String(message["from"] ?? "")
+    .toLowerCase()
+    .endsWith(`8:orgid:${userId}`);
+}
+
+/** Display name of a message's sender, or "me" for the signed-in user. */
+export function senderName(message: Record<string, unknown>, userId: string): string {
+  return fromUser(message, userId) ? "me" : text(message["imdisplayname"]);
 }
 
 export function compactChats(
@@ -120,6 +131,7 @@ export function compactChats(
         name: text(properties["topic"]),
         lastMessage: htmlToText(text(last["content"], MAX_TEXT)),
         lastMessageAt: text(last["composetime"] ?? last["originalarrivaltime"]),
+        lastSender: senderName(last, options.userId),
         unread,
       },
     ];
@@ -127,7 +139,7 @@ export function compactChats(
   return { chats: chats.slice(0, limit), truncated: chats.length > limit };
 }
 
-/** `fetched` is newest first, as Teams returns it; output is oldest first. Fetch `limit + 1`. */
+/** `fetched` is newest first (see listMessages); output is oldest first. Fetch `limit + 1`. */
 export function compactMessages(fetched: unknown[], limit: number) {
   const messages = fetched
     .slice(0, limit)
@@ -145,7 +157,6 @@ export function compactMessages(fetched: unknown[], limit: number) {
         time: text(message["composetime"] ?? message["originalarrivaltime"]),
         text: content.slice(0, MAX_TEXT),
         edited: Boolean(properties["edittime"]),
-        deleted: Boolean(properties["deletetime"]),
         textTruncated: content.length > MAX_TEXT,
       };
     })

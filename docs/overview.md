@@ -10,7 +10,7 @@ flowchart LR
   T --> W[Teams chat service: GET only]
 ```
 
-`@clerkhand/core` provides the browser driver, platform paths, JSON output and agent setup. `@clerkhand/teams` captures normal browser authentication, verifies it and reads chats with a small built-in client. That client talks only to the regional Teams chat service (`{amer,emea,apac}.ng.msg.teams.microsoft.com/v1`) and has no runtime dependency beyond core. Its only write is a plain-text POST to the user's own self-chat (`48:notes`), with the target fixed in code.
+`@clerkhand/core` provides the browser driver, platform paths, JSON output and agent setup. `@clerkhand/teams` captures normal browser authentication, verifies it and reads chats with a small built-in client. That client talks only to the regional Teams chat service (`{amer,emea,apac}.ng.msg.teams.microsoft.com/v1`) and has no runtime dependency beyond core. Its only write is a plain-text POST to a chat (self, 1:1, group or meeting); channel IDs are refused in code.
 
 Reads normally start no browser. When credentials are missing, within five minutes of expiry, or rejected by the service, clerkhand refreshes on demand. A command performs at most one refresh and one authentication-error retry. There is no background service.
 
@@ -32,9 +32,9 @@ The data directory is private: a current-user-only Windows ACL set when the dire
 
 ## Scope and limits
 
-- Work-account authentication, chat list (self, 1:1 and group chats) and chat history are implemented. Team channels are not listed.
+- Work-account authentication, chat list (self, 1:1, group and meeting chats), chat history and `find` by name are implemented. Team channels are not listed.
 - Server search needs a different token than the Skype credential this flow manages; it is not implemented.
-- Sending is limited to the self-chat: `draft` previews the text and a hash, `send --confirm <hash>` sends exactly that text. Edit, delete and restore are disabled.
+- Sending: `draft` shows the chat's participants and recent messages with a hash of chat and text; `send --confirm <hash>` sends exactly that. Edit, delete and restore are disabled.
 - No bypass of conditional access or admin approval. Changes to internal Teams endpoints may break authentication or reading.
 
 See [archive details](teams-ui-archive.md) for restoring the UI implementation.
