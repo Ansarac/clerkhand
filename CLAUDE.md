@@ -5,7 +5,7 @@ Occam's razor: the simplest thing that works. No speculative abstractions, optio
 ## Safety floor (non-negotiable)
 
 - Never send, edit or delete a message unless the user explicitly says so in this conversation. "Test it" is not permission to send.
-- Live message validation is limited to the user's own self-chat, and sends only when the user asks for it in this conversation. Sending is limited to the self-chat (`draft` then `send --confirm`); editing, deleting and restoring are not exposed.
+- Live message validation is limited to the user's own self-chat, and sends only when the user asks for it in this conversation. Never send to another person or group as a test; send there only a message the user dictated or approved for that exact chat (`draft` then `send --confirm`). Editing, deleting and restoring are not exposed.
 - Never call `agent-browser` directly against a logged-in profile; go through the `clerkhand-*` CLIs.
 - Never commit browser profiles, snapshots, logs or real chat content. Test fixtures are synthetic.
 - Only `clerkhand-teams auth refresh` may capture the user's normal Teams Skype credential from its dedicated browser profile. Never print, manually copy or pass credentials on a command line.

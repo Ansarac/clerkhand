@@ -7,7 +7,8 @@
       "Bash(clerkhand-teams auth status *)",
       "Bash(clerkhand-teams auth refresh *)",
       "Bash(clerkhand-teams whoami *)",
-      "Bash(clerkhand-teams draft *)"
+      "Bash(clerkhand-teams draft *)",
+      "Bash(clerkhand-teams find *)"
     ],
     "ask": ["Bash(clerkhand-teams send *)"],
     "deny": [

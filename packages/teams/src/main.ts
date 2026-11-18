@@ -1,5 +1,6 @@
 import { ClerkhandError, failure, success } from "@clerkhand/core";
 import { auth } from "./commands/auth.js";
+import { find } from "./commands/find.js";
 import { chats, read, whoami } from "./commands/read.js";
 import { draft, send } from "./commands/send.js";
 import { setup } from "./commands/setup.js";
@@ -12,10 +13,11 @@ const USAGE = `Usage: clerkhand-teams <command> [options]
   whoami                         Verify identity with Teams
   chats [--limit N] [--unread]    List chats (default 20, max 200)
   read <chat-id|self> [--last N]   Read recent messages (default 20, max 200)
-  draft self --text T             Preview a self-chat message and its confirmation hash
-  send self --text T --confirm H  Send that exact text to the self-chat
+  find <name>                     Find chats by group name or by who wrote in them
+  draft <chat-id|self> --text T   Preview a message: recipients, recent messages, hash
+  send <chat-id|self> --text T --confirm H   Send exactly that drafted message
   setup claude [--scope user|project] [--write]
-Only the self-chat can receive messages; edit, delete and search are not available. Output is JSON.`;
+Channels, edit, delete and search are not available. Output is JSON.`;
 const WRITES = new Set(["edit", "delete", "undo-delete"]);
 export const COMMANDS: Record<string, Command> = {
   auth,
@@ -23,6 +25,7 @@ export const COMMANDS: Record<string, Command> = {
   whoami,
   chats,
   read,
+  find,
   draft,
   send,
   setup,

@@ -10,9 +10,10 @@ export const ALLOWED_COMMANDS = [
   "whoami",
   "chats",
   "read",
+  "find",
   "draft",
 ] as const;
-/** Visible to others (here: the user's other devices); every call needs approval. */
+/** Visible to others; every call needs approval. */
 export const ASK_COMMANDS = ["send"] as const;
 export const DISABLED_COMMANDS = ["edit", "delete", "undo-delete"] as const;
 

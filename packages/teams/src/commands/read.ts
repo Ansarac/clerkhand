@@ -1,10 +1,9 @@
-import { whoami as apiWhoami, listConversations, listMessages } from "../api.js";
+import { whoami as apiWhoami, listConversations, listMessages, SELF_CHAT_ID } from "../api.js";
 import { type Command, limit, parse, usage } from "../context.js";
 import { compactChats, compactMessages, withReadSession } from "../read.js";
 
 const MAX_NAME_LENGTH = 512;
 const MAX_ID_LENGTH = 512;
-const SELF_CHAT_ID = "48:notes";
 // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point.
 const NOT_AN_ID = /[\u0000-\u001f\s]/u;
 

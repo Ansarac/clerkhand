@@ -19,12 +19,29 @@ export interface Session {
 
 export const SELF_CHAT_ID = "48:notes";
 const MAX_CLIENT_ID = 1e15;
+/** Self chat, 1:1 chats and group/meeting chats. Channels (`@thread.tacv2`) are refused. */
+const CHAT_ID = /^(?:48:notes|19:[\w.-]+@unq\.gbl\.spaces|19:[\w.-]+@thread\.v2)$/u;
+
+export function isSendableChatId(chatId: string): boolean {
+  return CHAT_ID.test(chatId);
+}
 
 /**
- * The only write: a plain-text message to the user's own self-chat. The target is fixed here,
- * not passed in. Never retried; a timeout leaves the outcome unknown.
+ * The only write: a plain-text message to one chat. Never retried here; a request that does not
+ * complete leaves the outcome unknown.
  */
-export async function sendToSelf(fetchImpl: Fetch, session: Session, text: string) {
+export async function sendMessage(
+  fetchImpl: Fetch,
+  session: Session,
+  chatId: string,
+  text: string,
+) {
+  if (!isSendableChatId(chatId)) {
+    throw new ClerkhandError(
+      "send_target_disabled",
+      "Only chats can receive messages, not channels.",
+    );
+  }
   if (!isMessageApi(session.messageApi)) {
     throw new ClerkhandError("teams_error", "Refused a request outside the Teams chat service.");
   }
@@ -32,7 +49,7 @@ export async function sendToSelf(fetchImpl: Fetch, session: Session, text: strin
   let response: Response;
   try {
     response = await fetchImpl(
-      `${session.messageApi}/users/ME/conversations/${encodeURIComponent(SELF_CHAT_ID)}/messages`,
+      `${session.messageApi}/users/ME/conversations/${encodeURIComponent(chatId)}/messages`,
       {
         method: "POST",
         headers: { ["X-Skypetoken"]: session.token, ["content-type"]: "application/json" },
@@ -50,7 +67,7 @@ export async function sendToSelf(fetchImpl: Fetch, session: Session, text: strin
     // biome-ignore lint/style/useErrorCause: network errors can echo request headers.
     throw new ClerkhandError(
       "send_unconfirmed",
-      "The send request did not complete; the message may or may not exist. Read the self-chat before trying again.",
+      "The send request did not complete; the message may or may not exist. Read the chat before trying again.",
     );
   }
   if (response.status === HTTP_UNAUTHORIZED) {
@@ -64,7 +81,7 @@ export async function sendToSelf(fetchImpl: Fetch, session: Session, text: strin
   const body = record(await response.json().catch(() => undefined));
   const arrival = body["OriginalArrivalTime"];
   return {
-    chatId: SELF_CHAT_ID,
+    chatId,
     clientMessageId,
     ...(typeof arrival === "number" ? { time: new Date(arrival).toISOString() } : {}),
   };
@@ -150,7 +167,7 @@ export async function listMessages(
 ): Promise<unknown[]> {
   const path = `/users/ME/conversations/${encodeURIComponent(chatId)}/messages`;
   let url: string | undefined =
-    `${session.messageApi}${path}?startTime=0&view=msnp24Equivalent&pageSize=${PAGE_SIZE}`;
+    `${session.messageApi}${path}?startTime=0&view=msnp24Equivalent&pageSize=${Math.min(limit, PAGE_SIZE)}`;
   const messages: unknown[] = [];
   for (let page = 0; url && messages.length < limit && page < MAX_PAGES; page += 1) {
     const body = record(await get(fetchImpl, session, url));
